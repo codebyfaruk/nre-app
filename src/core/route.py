@@ -1,12 +1,9 @@
 from fastapi import FastAPI
 from fastapi import APIRouter
+from src.accounts.routes.user import router as accounts_router
 
 # Create a simple router
 test_router = APIRouter()
 
-@test_router.get("/ping")
-async def ping():
-    return {"message": "pong"}
-
 def include_routers(app: FastAPI):
-    app.include_router(test_router, prefix="/api")
+    app.include_router(accounts_router, prefix="/api")
