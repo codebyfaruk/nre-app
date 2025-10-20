@@ -12,9 +12,10 @@ class Address(Base):
     state = Column(String, nullable=True)
     postal_code = Column(String, nullable=True)
     country = Column(String, nullable=False)
-    
-    # Flag to indicate if this is a shop branch
     is_shop = Column(Boolean, default=False, nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    
+

@@ -65,4 +65,4 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_addresses_id'), table_name='addresses')
     op.drop_table('addresses')
     # ### end Alembic commands ###
-    op.execute("DROP TYPE IF EXISTS roleenum")
+    sa.Enum('ADMIN', 'SALE', 'MANAGER', 'CUSTOMER', 'SUPPLIER', name='roleenum').drop(op.get_bind())
