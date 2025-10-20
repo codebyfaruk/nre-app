@@ -1,19 +1,16 @@
 import hashlib
-import os
+from src.core.config  import settings
 
-def hash_password(password: str, salt: bytes = None) -> tuple[str, bytes]:
+def hash_password(password: str) -> str:
     """
-    Hash password using SHA-256 with a salt.
-    Returns (hashed_password_hex, salt)
+    Hash password with SHA-256 using a single secret salt from env.
+    Returns hex string.
     """
-    if salt is None:
-        salt = os.urandom(16)
-    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100_000)
-    return hashed.hex(), salt
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), settings.SECRET_KEY.encode(), 100_000)
+    return hashed.hex()
 
-def verify_password(password: str, hashed: str, salt: bytes) -> bool:
+def verify_password(password: str, stored_hash: str) -> bool:
     """
-    Verify password against the hash and salt.
+    Verify password against stored hash using the same secret salt.
     """
-    new_hash, _ = hash_password(password, salt)
-    return new_hash == hashed
+    return hash_password(password) == stored_hash

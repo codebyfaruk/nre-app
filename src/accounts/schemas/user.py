@@ -1,50 +1,34 @@
 from pydantic import BaseModel, EmailStr
-from enum import Enum
-
-class UserRole(str, Enum):
-    admin = "Admin"
-    saler = "Saler"
-    manager = "Manager"
-    customer = "Customer"
-    supplier = "Supplier"
-
-class AddressBase(BaseModel):
-    street: str
-    city: str
-    state: str
-    country: str
-    zip_code: str
-    is_shop: bool = False
-
-class AddressCreate(AddressBase):
-    pass
-
-class AddressRead(AddressBase):
-    id: int
-
-    class Config:
-        from_attributes = True
+from datetime import datetime
+from src.accounts.models.user import RoleEnum
+from src.accounts.schemas.address import AddressRead
 
 class UserBase(BaseModel):
-    username: str
+    name: str
     email: EmailStr
-    role: UserRole
+    username: str
+    role: RoleEnum
+    is_active: bool = True
+    is_superuser: bool = False
+    address_id: int | None = None
 
 class UserCreate(UserBase):
     password: str
 
 class UserRead(UserBase):
     id: int
-    addresses: list[AddressRead] = []
+    created_at: datetime
+    updated_at: datetime
+    address: AddressRead | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
-class Token(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-class TokenPayload(BaseModel):
-    user_id: int
-    role: UserRole
+class UserUpdate(BaseModel):
+    name: str | None = None
+    email: EmailStr | None = None
+    username: str | None = None
+    role: RoleEnum | None = None
+    is_active: bool | None = None
+    is_superuser: bool | None = None
+    address_id: int | None = None
+    password: str | None = None
