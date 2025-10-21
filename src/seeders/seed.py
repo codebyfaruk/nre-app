@@ -1,6 +1,7 @@
 import asyncio
 from src.core.db import AsyncSessionLocal
 from src.accounts.seeders.role_seeder import RoleSeeder
+from src.shop.seeders import ShopSeeder, CategorySeeder, ProductSeeder
 
 
 async def run_seeders():
@@ -16,8 +17,19 @@ async def run_seeders():
             # Add more seeders here as needed
             # user_seeder = UserSeeder(db)
             # await user_seeder.seed()
+                
+            shop_seeder = ShopSeeder(db)
+            await shop_seeder.seed()
             
-            print("✅ All seeders completed successfully!\n")
+            category_seeder = CategorySeeder(db)
+            await category_seeder.seed()
+            
+            product_seeder = ProductSeeder(db)
+            await product_seeder.seed()
+            
+            print("\n" + "=" * 60)
+            print("✅ All seeders completed successfully!".center(60))
+            print("=" * 60 + "\n")
             
         except Exception as e:
             print(f"\n❌ Error during seeding: {str(e)}\n")

@@ -11,7 +11,7 @@ class UserActivity(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     action = Column(String(100), nullable=False)
     description = Column(String(255), nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now())
 
     # Relationships
     user = relationship("User", back_populates="activities")

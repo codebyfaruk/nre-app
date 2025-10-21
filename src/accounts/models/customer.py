@@ -39,6 +39,13 @@ class CustomerProfile(Base):
     # Relationships - STRING REFERENCES
     user = relationship("User", back_populates="customer_profile")
     preferred_address = relationship("Address", foreign_keys=[preferred_address_id], post_update=True)
-    
+    # Add to CustomerProfile class:
+    sales = relationship(
+        "Sale", 
+        foreign_keys="Sale.customer_id", 
+        back_populates="customer",
+        lazy="selectin"
+    )
+
     def __repr__(self):
         return f"<CustomerProfile(id={self.id}, full_name='{self.full_name}')>"

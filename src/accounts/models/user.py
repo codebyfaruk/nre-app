@@ -21,6 +21,25 @@ class User(Base):
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
     customer_profile = relationship("CustomerProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     addresses = relationship("Address", back_populates="user", cascade="all, delete-orphan")
+    # Add to User class:
+    shop_staff = relationship(
+        "ShopStaff", 
+        back_populates="user", 
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+    sales = relationship(
+        "Sale", 
+        foreign_keys="Sale.staff_id", 
+        back_populates="staff",
+        lazy="selectin"
+    )
+    returns_processed = relationship(
+        "Return", 
+        foreign_keys="Return.processed_by",
+        back_populates="processor",
+        lazy="selectin"
+    )
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}')>"

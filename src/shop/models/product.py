@@ -1,29 +1,34 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric, Text, Boolean
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.sql import func
 from src.core.db import Base
 
 
-class Category(Base):
-    __tablename__ = "categories"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    parent_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationship for subcategories
-    children = relationship("Category", backref="parent", remote_side=[id])
-
 class Product(Base):
     __tablename__ = "products"
-
-    id = Column(Integer, primary_key=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
-    supplier_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=False)
-    name = Column(String(100), nullable=False)
-    stock_quantity = Column(Integer, default=0)
-    purchase_price = Column(Float, nullable=False)
-    selling_price = Column(Float, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False, index=True)
+    slug = Column(String(200), nullable=False, unique=True, index=True)
+    sku = Column(String(100), nullable=False, unique=True, index=True)
+    description = Column(Text)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    brand = Column(String(100))
+    model = Column(String(100))
+    price = Column(Numeric(10, 2), nullable=False)
+    discount_price = Column(Numeric(10, 2))
+    cost_price = Column(Numeric(10, 2))
+    specifications = Column(Text) 
+    warranty_months = Column(Integer, default=0)
+    image_url = Column(String(500))
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    category = relationship("Category", back_populates="products", lazy="joined")
+    inventory = relationship("Inventory", back_populates="product", cascade="all, delete-orphan", lazy="selectin")
+    sale_items = relationship("SaleItem", back_populates="product", lazy="selectin")
+    
+    def __repr__(self):
+        return f"<Product(id={self.id}, name='{self.name}', sku='{self.sku}')>"
