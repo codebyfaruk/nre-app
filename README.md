@@ -1,3 +1,5 @@
+
+## Backend
 ```
 electronics_shop/
 │
@@ -49,5 +51,39 @@ electronics_shop/
     ├── unit/
     ├── integration/
     └── conftest.py
+
+```
+
+
+## Fontend
+```
+electronics-shop-frontend/
+├── index.html (Login Page)
+├── dashboard.html
+├── css/
+│   └── custom.css
+├── js/
+│   ├── config.js
+│   ├── auth.js
+│   ├── api.js
+│   ├── dashboard.js
+│   ├── shops.js
+│   ├── products.js
+│   ├── inventory.js
+│   ├── sales.js
+│   ├── returns.js
+│   └── users.js
+├── pages/
+│   ├── shops.html
+│   ├── products.html
+│   ├── categories.html
+│   ├── inventory.html
+│   ├── sales.html
+│   ├── pos.html (Point of Sale)
+│   ├── returns.html
+│   └── users.html
+└── components/
+    ├── sidebar.html
+    └── navbar.html
 
 ```

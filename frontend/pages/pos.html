@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Point of Sale - Electronics Shop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../css/custom.css">
+</head>
+<body class="bg-gray-100">
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-gray-900 text-white z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300">
+        <div class="p-6 border-b border-gray-800">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fas fa-store mr-3"></i>
+                Electronics Shop
+            </h1>
+        </div>
+
+        <nav class="p-4 space-y-2">
+            <a href="../dashboard.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-home w-6"></i><span>Dashboard</span>
+            </a>
+            <a href="products.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-box w-6"></i><span>Products</span>
+            </a>
+            <a href="inventory.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-warehouse w-6"></i><span>Inventory</span>
+            </a>
+            <a href="pos.html" class="flex items-center px-4 py-3 bg-blue-600 rounded-lg">
+                <i class="fas fa-cash-register w-6"></i><span>POS</span>
+            </a>
+            <a href="sales.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-receipt w-6"></i><span>Sales</span>
+            </a>
+            <a href="returns.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-undo w-6"></i><span>Returns</span>
+            </a>
+            <a href="#" onclick="logout()" class="flex items-center px-4 py-3 hover:bg-red-600 rounded-lg mt-4">
+                <i class="fas fa-sign-out-alt w-6"></i><span>Logout</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="lg:ml-64 min-h-screen">
+        <div class="bg-white shadow-md px-6 py-4">
+            <button onclick="toggleSidebar()" class="lg:hidden text-gray-600">
+                <i class="fas fa-bars text-2xl"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-gray-800">Point of Sale</h2>
+        </div>
+
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Product Selection -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Shop *</label>
+                            <select id="shopSelect" required class="w-full px-3 py-2 border rounded-lg select2">
+                                <option value="">Select Shop</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Search Product</label>
+                            <select id="productSelect" class="w-full select2">
+                                <option value="">Search and select product...</option>
+                            </select>
+                        </div>
+
+                        <div class="text-sm text-gray-500 mb-4">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Select shop first to see available products
+                        </div>
+
+                        <!-- Selected Items -->
+                        <div class="border-t pt-4">
+                            <h3 class="font-bold text-lg mb-4">Cart Items</h3>
+                            <div id="cartItems" class="space-y-3">
+                                <p class="text-gray-500 text-center py-8">No items added</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cart Summary -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-lg shadow-md p-6 sticky top-6">
+                        <h3 class="font-bold text-xl mb-4">Order Summary</h3>
+                        
+                        <div class="space-y-3 mb-4">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Subtotal</span>
+                                <span class="font-semibold" id="subtotal">₹0.00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Tax (18%)</span>
+                                <span class="font-semibold" id="tax">₹0.00</span>
+                            </div>
+                            <div class="border-t pt-3 flex justify-between text-xl">
+                                <span class="font-bold">Total</span>
+                                <span class="font-bold text-blue-600" id="total">₹0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Payment Method *</label>
+                            <select id="paymentMethod" required class="w-full px-3 py-2 border rounded-lg">
+                                <option value="cash">Cash</option>
+                                <option value="card">Card</option>
+                                <option value="upi">UPI</option>
+                                <option value="online">Online</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Payment Reference</label>
+                            <input type="text" id="paymentReference" placeholder="Optional" class="w-full px-3 py-2 border rounded-lg">
+                        </div>
+
+                        <div class="space-y-2">
+                            <button onclick="completeSale()" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700">
+                                <i class="fas fa-check-circle mr-2"></i>Complete Sale
+                            </button>
+                            <button onclick="clearCart()" class="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700">
+                                <i class="fas fa-trash mr-2"></i>Clear Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        // POS JavaScript
+        let cart = [];
+        let products = [];
+        let selectedShop = null;
+
+        $(document).ready(function() {
+            if (!checkAuth()) return;
+
+            $('.select2').select2();
+            loadShops();
+
+            $('#shopSelect').on('change', function() {
+                selectedShop = $(this).val();
+                if (selectedShop) {
+                    loadProducts();
+                } else {
+                    $('#productSelect').html('<option value="">Select shop first</option>').prop('disabled', true);
+                }
+            });
+
+            $('#productSelect').on('change', function() {
+                const productId = $(this).val();
+                if (productId) {
+                    addToCart(parseInt(productId));
+                    $(this).val('').trigger('change');
+                }
+            });
+        });
+
+        async function loadShops() {
+            try {
+                const shops = await api.getShops();
+                let options = '<option value="">Select Shop</option>';
+                shops.forEach(shop => {
+                    options += `<option value="${shop.id}">${shop.name}</option>`;
+                });
+                $('#shopSelect').html(options);
+            } catch (error) {
+                showError('Failed to load shops');
+            }
+        }
+
+        async function loadProducts() {
+            try {
+                products = await api.getProducts();
+                const inventory = await api.getShopInventory(selectedShop);
+                
+                let options = '<option value="">Search and select product...</option>';
+                products.forEach(product => {
+                    const inv = inventory.find(i => i.product_id === product.id);
+                    if (inv && inv.available_quantity > 0) {
+                        const price = product.discount_price || product.price;
+                        options += `<option value="${product.id}">${product.name} - ${formatCurrency(price)} (Stock: ${inv.available_quantity})</option>`;
+                    }
+                });
+                $('#productSelect').html(options).prop('disabled', false);
+            } catch (error) {
+                showError('Failed to load products');
+            }
+        }
+
+        function addToCart(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            const existing = cart.find(item => item.product_id === productId);
+            if (existing) {
+                existing.quantity++;
+            } else {
+                cart.push({
+                    product_id: productId,
+                    name: product.name,
+                    unit_price: parseFloat(product.discount_price || product.price),
+                    quantity: 1,
+                    discount: 0
+                });
+            }
+
+            updateCart();
+        }
+
+        function removeFromCart(productId) {
+            cart = cart.filter(item => item.product_id !== productId);
+            updateCart();
+        }
+
+        function updateQuantity(productId, quantity) {
+            const item = cart.find(i => i.product_id === productId);
+            if (item) {
+                item.quantity = Math.max(1, quantity);
+                updateCart();
+            }
+        }
+
+        function updateCart() {
+            if (cart.length === 0) {
+                $('#cartItems').html('<p class="text-gray-500 text-center py-8">No items added</p>');
+                updateTotals(0, 0, 0);
+                return;
+            }
+
+            let html = '';
+            cart.forEach(item => {
+                const total = item.unit_price * item.quantity - item.discount;
+                html += `
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex-1">
+                            <p class="font-semibold">${item.name}</p>
+                            <p class="text-sm text-gray-600">${formatCurrency(item.unit_price)} × ${item.quantity}</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <input type="number" value="${item.quantity}" min="1" 
+                                onchange="updateQuantity(${item.product_id}, this.value)"
+                                class="w-16 px-2 py-1 border rounded text-center">
+                            <span class="font-bold text-blue-600 w-24 text-right">${formatCurrency(total)}</span>
+                            <button onclick="removeFromCart(${item.product_id})" class="text-red-600 hover:text-red-800">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            $('#cartItems').html(html);
+
+            // Calculate totals
+            const subtotal = cart.reduce((sum, item) => sum + (item.unit_price * item.quantity - item.discount), 0);
+            const tax = subtotal * 0.18;
+            const total = subtotal + tax;
+
+            updateTotals(subtotal, tax, total);
+        }
+
+        function updateTotals(subtotal, tax, total) {
+            $('#subtotal').text(formatCurrency(subtotal));
+            $('#tax').text(formatCurrency(tax));
+            $('#total').text(formatCurrency(total));
+        }
+
+        function clearCart() {
+            if (cart.length === 0) return;
+            
+            Swal.fire({
+                title: 'Clear Cart?',
+                text: 'All items will be removed',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, clear it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    cart = [];
+                    updateCart();
+                }
+            });
+        }
+
+        async function completeSale() {
+            if (!selectedShop) {
+                showError('Please select a shop');
+                return;
+            }
+
+            if (cart.length === 0) {
+                showError('Cart is empty');
+                return;
+            }
+
+            const paymentMethod = $('#paymentMethod').val();
+            if (!paymentMethod) {
+                showError('Please select payment method');
+                return;
+            }
+
+            try {
+                showLoading();
+
+                const saleData = {
+                    shop_id: parseInt(selectedShop),
+                    payment_method: paymentMethod,
+                    payment_reference: $('#paymentReference').val() || null,
+                    items: cart.map(item => ({
+                        product_id: item.product_id,
+                        quantity: item.quantity,
+                        unit_price: item.unit_price.toString(),
+                        discount: item.discount.toString()
+                    }))
+                };
+
+                const result = await api.createSale(saleData);
+
+                hideLoading();
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Sale Completed!',
+                    html: `
+                        <div class="text-left">
+                            <p class="mb-2"><strong>Invoice:</strong> ${result.invoice_number}</p>
+                            <p class="mb-2"><strong>Total:</strong> ${formatCurrency(result.total_amount)}</p>
+                            <p class="text-sm text-gray-600">Sale has been recorded successfully</p>
+                        </div>
+                    `,
+                    confirmButtonText: 'Print Receipt'
+                }).then(() => {
+                    cart = [];
+                    updateCart();
+                    $('#paymentReference').val('');
+                    loadProducts();
+                });
+
+            } catch (error) {
+                showError(error.message || 'Failed to complete sale');
+            }
+        }
+    </script>
+</body>
+</html>

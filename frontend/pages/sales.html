@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales - Electronics Shop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/custom.css">
+</head>
+<body class="bg-gray-100">
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-gray-900 text-white z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300">
+        <div class="p-6 border-b border-gray-800">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fas fa-store mr-3"></i>
+                Electronics Shop
+            </h1>
+        </div>
+
+        <nav class="p-4 space-y-2">
+            <a href="../dashboard.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-home w-6"></i><span>Dashboard</span>
+            </a>
+            <a href="products.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-box w-6"></i><span>Products</span>
+            </a>
+            <a href="inventory.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-warehouse w-6"></i><span>Inventory</span>
+            </a>
+            <a href="pos.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-cash-register w-6"></i><span>POS</span>
+            </a>
+            <a href="sales.html" class="flex items-center px-4 py-3 bg-blue-600 rounded-lg">
+                <i class="fas fa-receipt w-6"></i><span>Sales</span>
+            </a>
+            <a href="returns.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-undo w-6"></i><span>Returns</span>
+            </a>
+            <a href="#" onclick="logout()" class="flex items-center px-4 py-3 hover:bg-red-600 rounded-lg mt-4">
+                <i class="fas fa-sign-out-alt w-6"></i><span>Logout</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="lg:ml-64">
+        <div class="bg-white shadow-md px-6 py-4">
+            <button onclick="toggleSidebar()" class="lg:hidden text-gray-600">
+                <i class="fas fa-bars text-2xl"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-gray-800">Sales History</h2>
+        </div>
+
+        <div class="p-6">
+            <!-- Filters -->
+            <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <select id="filterShop" class="px-4 py-2 border rounded-lg">
+                        <option value="">All Shops</option>
+                    </select>
+                    <select id="filterStatus" class="px-4 py-2 border rounded-lg">
+                        <option value="">All Status</option>
+                        <option value="completed">Completed</option>
+                        <option value="pending">Pending</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <input type="date" id="filterStartDate" class="px-4 py-2 border rounded-lg">
+                    <input type="date" id="filterEndDate" class="px-4 py-2 border rounded-lg">
+                </div>
+            </div>
+
+            <!-- Sales Table -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr class="border-b">
+                                <th class="text-left py-3 px-4">Invoice</th>
+                                <th class="text-left py-3 px-4">Date</th>
+                                <th class="text-left py-3 px-4">Shop</th>
+                                <th class="text-left py-3 px-4">Items</th>
+                                <th class="text-left py-3 px-4">Total</th>
+                                <th class="text-left py-3 px-4">Payment</th>
+                                <th class="text-left py-3 px-4">Status</th>
+                                <th class="text-left py-3 px-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesTable">
+                            <tr>
+                                <td colspan="8" class="text-center py-4">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sale Detail Modal -->
+    <div id="saleDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center overflow-y-auto">
+        <div class="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 my-8">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold">Sale Details</h3>
+                <button onclick="closeSaleDetail()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div id="saleDetailContent"></div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        let shops = {};
+
+        $(document).ready(function() {
+            if (!checkAuth()) return;
+
+            loadShops();
+            loadSales();
+
+            $('#filterShop, #filterStatus, #filterStartDate, #filterEndDate').on('change', loadSales);
+        });
+
+        async function loadShops() {
+            try {
+                const shopsList = await api.getShops();
+                shopsList.forEach(shop => shops[shop.id] = shop);
+
+                let options = '<option value="">All Shops</option>';
+                shopsList.forEach(shop => {
+                    options += `<option value="${shop.id}">${shop.name}</option>`;
+                });
+                $('#filterShop').html(options);
+            } catch (error) {
+                console.error('Failed to load shops');
+            }
+        }
+
+        async function loadSales() {
+            try {
+                const params = {};
+                
+                const shopId = $('#filterShop').val();
+                if (shopId) params.shop_id = shopId;
+
+                const status = $('#filterStatus').val();
+                if (status) params.status = status;
+
+                const startDate = $('#filterStartDate').val();
+                if (startDate) params.start_date = startDate + 'T00:00:00';
+
+                const endDate = $('#filterEndDate').val();
+                if (endDate) params.end_date = endDate + 'T23:59:59';
+
+                const sales = await api.getSales(params);
+
+                if (sales.length === 0) {
+                    $('#salesTable').html('<tr><td colspan="8" class="text-center py-4 text-gray-500">No sales found</td></tr>');
+                    return;
+                }
+
+                let html = '';
+                sales.forEach(sale => {
+                    html += `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="py-3 px-4 font-semibold">${sale.invoice_number}</td>
+                            <td class="py-3 px-4">${formatDateOnly(sale.sale_date)}</td>
+                            <td class="py-3 px-4">${shops[sale.shop_id]?.name || 'N/A'}</td>
+                            <td class="py-3 px-4">${sale.items.length} items</td>
+                            <td class="py-3 px-4 font-bold text-green-600">${formatCurrency(sale.total_amount)}</td>
+                            <td class="py-3 px-4">
+                                <span class="text-xs">${sale.payment_method.toUpperCase()}</span>
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="px-3 py-1 rounded-full text-xs ${getStatusBadge(sale.status)}">
+                                    ${sale.status}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4">
+                                <button onclick="viewSaleDetail(${sale.id})" class="text-blue-600 hover:text-blue-800 mr-2">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                ${sale.status === 'completed' && isManager() ? `
+                                    <button onclick="cancelSale(${sale.id})" class="text-red-600 hover:text-red-800">
+                                        <i class="fas fa-ban"></i>
+                                    </button>
+                                ` : ''}
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                $('#salesTable').html(html);
+            } catch (error) {
+                $('#salesTable').html('<tr><td colspan="8" class="text-center py-4 text-red-500">Failed to load sales</td></tr>');
+            }
+        }
+
+        async function viewSaleDetail(id) {
+            try {
+                showLoading();
+                const sale = await api.getSale(id);
+                hideLoading();
+
+                let itemsHtml = '';
+                sale.items.forEach(item => {
+                    itemsHtml += `
+                        <tr class="border-b">
+                            <td class="py-2">${item.product_name}</td>
+                            <td class="py-2">${item.product_sku}</td>
+                            <td class="py-2 text-center">${item.quantity}</td>
+                            <td class="py-2 text-right">${formatCurrency(item.unit_price)}</td>
+                            <td class="py-2 text-right">${formatCurrency(item.discount)}</td>
+                            <td class="py-2 text-right font-bold">${formatCurrency(item.total_price)}</td>
+                        </tr>
+                    `;
+                });
+
+                const html = `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <p class="text-sm text-gray-600">Invoice Number</p>
+                                <p class="font-bold">${sale.invoice_number}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Date</p>
+                                <p class="font-bold">${formatDate(sale.sale_date)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Shop</p>
+                                <p class="font-bold">${shops[sale.shop_id]?.name || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Payment Method</p>
+                                <p class="font-bold">${sale.payment_method.toUpperCase()}</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold mb-2">Items</h4>
+                            <table class="min-w-full text-sm">
+                                <thead>
+                                    <tr class="border-b bg-gray-50">
+                                        <th class="text-left py-2">Product</th>
+                                        <th class="text-left py-2">SKU</th>
+                                        <th class="text-center py-2">Qty</th>
+                                        <th class="text-right py-2">Price</th>
+                                        <th class="text-right py-2">Discount</th>
+                                        <th class="text-right py-2">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="border-t pt-4">
+                            <div class="flex justify-end space-y-2">
+                                <div class="w-64">
+                                    <div class="flex justify-between mb-2">
+                                        <span>Subtotal:</span>
+                                        <span class="font-semibold">${formatCurrency(sale.subtotal)}</span>
+                                    </div>
+                                    <div class="flex justify-between mb-2">
+                                        <span>Tax:</span>
+                                        <span class="font-semibold">${formatCurrency(sale.tax_amount)}</span>
+                                    </div>
+                                    <div class="flex justify-between text-xl border-t pt-2">
+                                        <span class="font-bold">Total:</span>
+                                        <span class="font-bold text-green-600">${formatCurrency(sale.total_amount)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                $('#saleDetailContent').html(html);
+                $('#saleDetailModal').removeClass('hidden');
+            } catch (error) {
+                showError('Failed to load sale details');
+            }
+        }
+
+        function closeSaleDetail() {
+            $('#saleDetailModal').addClass('hidden');
+        }
+
+        async function cancelSale(id) {
+            const { value: reason } = await Swal.fire({
+                title: 'Cancel Sale?',
+                input: 'textarea',
+                inputLabel: 'Reason for cancellation',
+                inputPlaceholder: 'Enter reason...',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: 'Cancel Sale'
+            });
+
+            if (reason) {
+                try {
+                    showLoading();
+                    await api.cancelSale(id, reason);
+                    showSuccess('Sale cancelled successfully');
+                    loadSales();
+                } catch (error) {
+                    showError('Failed to cancel sale');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

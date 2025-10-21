@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - Electronics Shop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/custom.css">
+</head>
+<body class="bg-gray-100">
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-gray-900 text-white z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300">
+        <div class="p-6 border-b border-gray-800">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fas fa-store mr-3"></i>
+                Electronics Shop
+            </h1>
+        </div>
+
+        <nav class="p-4 space-y-2">
+            <a href="../dashboard.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-home w-6"></i><span>Dashboard</span>
+            </a>
+            <a href="products.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-box w-6"></i><span>Products</span>
+            </a>
+            <a href="inventory.html" class="flex items-center px-4 py-3 bg-blue-600 rounded-lg">
+                <i class="fas fa-warehouse w-6"></i><span>Inventory</span>
+            </a>
+            <a href="pos.html" class="flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg">
+                <i class="fas fa-cash-register w-6"></i><span>POS</span>
+            </a>
+            <a href="#" onclick="logout()" class="flex items-center px-4 py-3 hover:bg-red-600 rounded-lg mt-4">
+                <i class="fas fa-sign-out-alt w-6"></i><span>Logout</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="lg:ml-64">
+        <div class="bg-white shadow-md px-6 py-4">
+            <button onclick="toggleSidebar()" class="lg:hidden text-gray-600">
+                <i class="fas fa-bars text-2xl"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-gray-800">Inventory Management</h2>
+        </div>
+
+        <div class="p-6">
+            <!-- Shop Selector -->
+            <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                <label class="block text-sm font-medium mb-2">Select Shop</label>
+                <select id="shopSelect" class="w-full md:w-64 px-4 py-2 border rounded-lg">
+                    <option value="">Select Shop</option>
+                </select>
+            </div>
+
+            <!-- Inventory Table -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr class="border-b">
+                                <th class="text-left py-3 px-4">Product</th>
+                                <th class="text-left py-3 px-4">SKU</th>
+                                <th class="text-center py-3 px-4">Stock</th>
+                                <th class="text-center py-3 px-4">Reserved</th>
+                                <th class="text-center py-3 px-4">Available</th>
+                                <th class="text-center py-3 px-4">Min Level</th>
+                                <th class="text-center py-3 px-4">Status</th>
+                                <th class="text-center py-3 px-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable">
+                            <tr>
+                                <td colspan="8" class="text-center py-4">Select a shop to view inventory</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Adjust Stock Modal -->
+    <div id="adjustModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 class="text-xl font-bold mb-4">Adjust Stock</h3>
+            <form id="adjustForm">
+                <input type="hidden" id="inventoryId">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Product</label>
+                    <input type="text" id="productInfo" readonly class="w-full px-3 py-2 border rounded-lg bg-gray-100">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Current Stock</label>
+                    <input type="text" id="currentStock" readonly class="w-full px-3 py-2 border rounded-lg bg-gray-100">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Adjustment *</label>
+                    <input type="number" id="adjustment" required placeholder="Use + to add, - to remove" class="w-full px-3 py-2 border rounded-lg">
+                    <p class="text-xs text-gray-500 mt-1">Example: +50 to add, -20 to remove</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Reason</label>
+                    <textarea id="adjustReason" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea>
+                </div>
+                <div class="flex space-x-2">
+                    <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                        Adjust Stock
+                    </button>
+                    <button type="button" onclick="closeAdjustModal()" class="flex-1 bg-gray-300 py-2 rounded-lg hover:bg-gray-400">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/api.js"></script>
+    <script>
+        $(document).ready(function() {
+            if (!checkAuth()) return;
+
+            loadShops();
+
+            $('#shopSelect').on('change', function() {
+                const shopId = $(this).val();
+                if (shopId) {
+                    loadInventory(shopId);
+                }
+            });
+
+            $('#adjustForm').on('submit', handleAdjustStock);
+        });
+
+        async function loadShops() {
+            try {
+                const shops = await api.getShops();
+                let options = '<option value="">Select Shop</option>';
+                shops.forEach(shop => {
+                    options += `<option value="${shop.id}">${shop.name}</option>`;
+                });
+                $('#shopSelect').html(options);
+            } catch (error) {
+                showError('Failed to load shops');
+            }
+        }
+
+        async function loadInventory(shopId) {
+            try {
+                const inventory = await api.getShopInventory(shopId);
+
+                if (inventory.length === 0) {
+                    $('#inventoryTable').html('<tr><td colspan="8" class="text-center py-4 text-gray-500">No inventory found</td></tr>');
+                    return;
+                }
+
+                let html = '';
+                inventory.forEach(item => {
+                    const needsRestock = item.quantity <= item.min_stock_level;
+                    
+                    html += `
+                        <tr class="border-b hover:bg-gray-50 ${needsRestock ? 'bg-red-50' : ''}">
+                            <td class="py-3 px-4 font-semibold">${item.product?.name || 'N/A'}</td>
+                            <td class="py-3 px-4 text-sm text-gray-600">${item.product?.sku || 'N/A'}</td>
+                            <td class="py-3 px-4 text-center font-bold">${item.quantity}</td>
+                            <td class="py-3 px-4 text-center text-yellow-600">${item.reserved_quantity}</td>
+                            <td class="py-3 px-4 text-center font-bold text-green-600">${item.available_quantity}</td>
+                            <td class="py-3 px-4 text-center text-gray-500">${item.min_stock_level}</td>
+                            <td class="py-3 px-4 text-center">
+                                ${needsRestock ? 
+                                    '<span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>Low Stock</span>' :
+                                    '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"><i class="fas fa-check-circle mr-1"></i>OK</span>'
+                                }
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                ${isManager() ? `
+                                    <button onclick="showAdjustModal(${item.id}, '${item.product?.name}', ${item.quantity})" class="text-blue-600 hover:text-blue-800">
+                                        <i class="fas fa-edit"></i> Adjust
+                                    </button>
+                                ` : '-'}
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                $('#inventoryTable').html(html);
+            } catch (error) {
+                $('#inventoryTable').html('<tr><td colspan="8" class="text-center py-4 text-red-500">Failed to load inventory</td></tr>');
+            }
+        }
+
+        function showAdjustModal(inventoryId, productName, currentStock) {
+            $('#inventoryId').val(inventoryId);
+            $('#productInfo').val(productName);
+            $('#currentStock').val(currentStock);
+            $('#adjustment').val('');
+            $('#adjustReason').val('');
+            $('#adjustModal').removeClass('hidden');
+        }
+
+        function closeAdjustModal() {
+            $('#adjustModal').addClass('hidden');
+        }
+
+        async function handleAdjustStock(e) {
+            e.preventDefault();
+
+            const inventoryId = $('#inventoryId').val();
+            const adjustment = parseInt($('#adjustment').val());
+            const reason = $('#adjustReason').val();
+
+            if (!adjustment || adjustment === 0) {
+                showError('Please enter a valid adjustment value');
+                return;
+            }
+
+            try {
+                showLoading();
+                await api.adjustStock(inventoryId, adjustment, reason);
+                showSuccess('Stock adjusted successfully');
+                closeAdjustModal();
+                
+                const shopId = $('#shopSelect').val();
+                if (shopId) {
+                    loadInventory(shopId);
+                }
+            } catch (error) {
+                showError(error.message || 'Failed to adjust stock');
+            }
+        }
+    </script>
+</body>
+</html>
