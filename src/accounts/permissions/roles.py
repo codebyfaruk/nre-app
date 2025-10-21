@@ -1,44 +1,72 @@
-from src.accounts.permissions.base import BasePermission
-from src.accounts.models.user import RoleEnum
+from fastapi import Depends, HTTPException, status
+from src.accounts.models import User
+from src.accounts.dependencies import get_current_active_user
+from src.accounts.permissions.base import RoleChecker
 
 
-class IsAdmin(BasePermission):
-    message = "Only admins can perform this action."
-
-    def has_permission(self, user):
-        return user.role == RoleEnum.ADMIN
-
-
-class IsManager(BasePermission):
-    message = "Only managers can perform this action."
-
-    def has_permission(self, user):
-        return user.role == RoleEnum.MANAGER
-
-
-class IsSupplier(BasePermission):
-    message = "Only suppliers can perform this action."
-
-    def has_permission(self, user):
-        return user.role == RoleEnum.SUPPLIER
+class IsSuperAdmin:
+    """
+    SuperAdmin permission - highest level (Level 4).
+    Only users with SuperAdmin role can access.
+    
+    Usage: user: User = Depends(IsSuperAdmin())
+    """
+    
+    def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
+        if not RoleChecker.has_role_or_higher(current_user, "superadmin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This action requires SuperAdmin privileges"
+            )
+        return current_user
 
 
-class IsSalesRep(BasePermission):
-    message = "Only sales representatives can perform this action."
+class IsAdmin:
+    """
+    Admin permission (Level 3).
+    Users with Admin or SuperAdmin role can access.
+    
+    Usage: user: User = Depends(IsAdmin())
+    """
+    
+    def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
+        if not RoleChecker.has_role_or_higher(current_user, "admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This action requires Admin privileges or higher"
+            )
+        return current_user
 
-    def has_permission(self, user):
-        return user.role == RoleEnum.SALES_REP
+
+class IsManager:
+    """
+    Manager permission (Level 2).
+    Users with Manager, Admin, or SuperAdmin role can access.
+    
+    Usage: user: User = Depends(IsManager())
+    """
+    
+    def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
+        if not RoleChecker.has_role_or_higher(current_user, "manager"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This action requires Manager privileges or higher"
+            )
+        return current_user
 
 
-class IsAdminOrManager(BasePermission):
-    message = "Only admins or managers can perform this action."
-
-    def has_permission(self, user):
-        return user.role in [RoleEnum.ADMIN, RoleEnum.MANAGER]
-
-
-class IsAdminOrSupplier(BasePermission):
-    message = "Only admins or suppliers can perform this action."
-
-    def has_permission(self, user):
-        return user.role in [RoleEnum.ADMIN, RoleEnum.SUPPLIER]
+class IsStaff:
+    """
+    Staff permission - lowest level (Level 1).
+    Any user with Staff, Manager, Admin, or SuperAdmin role can access.
+    
+    Usage: user: User = Depends(IsStaff())
+    """
+    
+    def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
+        if not RoleChecker.has_role_or_higher(current_user, "staff"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This action requires Staff privileges or higher"
+            )
+        return current_user

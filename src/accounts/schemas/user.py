@@ -1,34 +1,80 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from datetime import datetime
-from src.accounts.models.user import RoleEnum
-from src.accounts.schemas.address import AddressRead
+from typing import Optional, List
+
+
+class RoleBase(BaseModel):
+    name: str = Field(..., max_length=50)
+    description: Optional[str] = Field(None, max_length=255)
+
+
+class RoleCreate(RoleBase):
+    pass
+
+
+class RoleResponse(RoleBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+
+class UserRoleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    role: RoleResponse
+    
 
 class UserBase(BaseModel):
-    name: str
+    username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    username: str
-    role: RoleEnum
-    is_active: bool = True
-    is_superuser: bool = False
-    address_id: int | None = None
+
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., min_length=8)
+    is_staff: Optional[bool] = True
 
-class UserRead(UserBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-    address: AddressRead | None = None
-
-    model_config = {"from_attributes": True}
 
 class UserUpdate(BaseModel):
-    name: str | None = None
-    email: EmailStr | None = None
-    username: str | None = None
-    role: RoleEnum | None = None
-    is_active: bool | None = None
-    is_superuser: bool | None = None
-    address_id: int | None = None
-    password: str | None = None
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(None, min_length=8)
+    is_active: Optional[bool] = None
+    is_staff: Optional[bool] = None
+
+
+class UserResponse(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    is_active: bool
+    is_staff: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    roles: List[UserRoleResponse] = []
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class TokenData(BaseModel):
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    roles: List[str] = []
+
+class TokenResponse(BaseModel):
+    """Response for login with both access and refresh tokens"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+class RefreshTokenRequest(BaseModel):
+    """Request to refresh access token"""
+    refresh_token: str
