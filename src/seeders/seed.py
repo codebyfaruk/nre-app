@@ -1,6 +1,6 @@
 import asyncio
 from src.core.db import AsyncSessionLocal
-from src.accounts.seeders.role_seeder import RoleSeeder
+from src.accounts.seeders import RoleSeeder, UserSeeder
 from src.shop.seeders import ShopSeeder, CategorySeeder, ProductSeeder
 
 
@@ -15,8 +15,8 @@ async def run_seeders():
             await role_seeder.seed()
             
             # Add more seeders here as needed
-            # user_seeder = UserSeeder(db)
-            # await user_seeder.seed()
+            user_seeder = UserSeeder(db)
+            await user_seeder.seed()
                 
             shop_seeder = ShopSeeder(db)
             await shop_seeder.seed()
