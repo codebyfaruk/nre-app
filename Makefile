@@ -45,3 +45,9 @@ logview:
 
 runapp:
 	uvicorn src.main:app --host "0.0.0.0" --port 8000 --reload
+
+prune:
+	docker system prune --volumes
+
+seeder:
+	$(DC) exec $(APP_NAME) python -m src.seeders.seed

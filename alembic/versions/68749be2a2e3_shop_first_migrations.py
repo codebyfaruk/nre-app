@@ -222,3 +222,6 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_categories_id'), table_name='categories')
     op.drop_table('categories')
     # ### end Alembic commands ###
+
+    sa.Enum('CASH', 'CARD', 'UPI', 'ONLINE', name='paymentmethod').drop(op.get_bind())
+    sa.Enum('PENDING', 'COMPLETED', 'CANCELLED', 'REFUNDED', name='salestatus').drop(op.get_bind())
