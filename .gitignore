@@ -95,3 +95,4 @@ frontend/.env.production.local
 
 # OS-specific files
 Thumbs.db
+media/
