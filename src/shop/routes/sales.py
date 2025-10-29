@@ -107,19 +107,13 @@ async def create_return(
     return product_return
 
 
-@router.get("/returns/", response_model=List[ReturnResponse], tags=["Returns"])
+@router.get("/returns/", response_model=List[ReturnResponse])
 async def get_returns(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
     status: Optional[str] = Query(None, description="Filter by status"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsStaff())
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get list of returns (Staff+)
-    """
-    returns = await SalesController.get_returns(db, skip, limit, status)
-    return returns
+    """Get returns with optional status filter"""
+    return await SalesController.get_returns(db=db, return_status=status)
 
 
 @router.put("/returns/{return_id}/process", response_model=ReturnResponse, tags=["Returns"])
