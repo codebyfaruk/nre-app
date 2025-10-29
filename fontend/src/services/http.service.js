@@ -274,11 +274,12 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ❌ REMOVED - Your backend doesn't have this endpoint
-  // getLowStock: async () => {
-  //   const response = await apiClient.get('/inventory/low-stock');
-  //   return { success: true, data: response.data };
-  // },
+  getLowStock: async (threshold = 5) => {
+    const response = await apiClient.get(
+      `/inventory/low-stock?threshold=${threshold}`
+    );
+    return { success: true, data: response.data };
+  },
 
   // ============================================
   // 💰 SALES ENDPOINTS
@@ -304,11 +305,10 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ❌ REMOVED - Your backend doesn't have this endpoint
-  // getTodaySales: async () => {
-  //   const response = await apiClient.get('/sales/today');
-  //   return { success: true, data: response.data };
-  // },
+  getTodaySales: async () => {
+    const response = await apiClient.get("/sales/today");
+    return { success: true, data: response.data };
+  },
 
   // ============================================
   // ↩️ RETURNS ENDPOINTS

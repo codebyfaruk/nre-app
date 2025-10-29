@@ -8,7 +8,7 @@ from .inventory import InventoryBase, InventoryCreate, InventoryUpdate, Inventor
 from .sales import (
     SaleBase, SaleCreate, SaleResponse,
     SaleItemBase, SaleItemCreate, SaleItemResponse,
-    ReturnBase, ReturnCreate, ReturnUpdate, ReturnResponse
+    ReturnBase, ReturnCreate, ReturnUpdate, ReturnResponse, TodaysSalesResponse
 )
 
 __all__ = [

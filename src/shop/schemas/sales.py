@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import datetime
-from typing import Optional, List
+from datetime import datetime, date as DateType
+from typing import Optional, List 
 from decimal import Decimal
 from enum import Enum
 
@@ -79,6 +79,15 @@ class SaleResponse(BaseModel):
     updated_at: Optional[datetime]
     items: List[SaleItemResponse] = []
 
+class TodaysSalesResponse(BaseModel):
+    """Today's sales summary with full details"""
+    date: DateType = Field(..., description="Today's date")
+    total_sales_count: int = Field(..., description="Number of sales today")
+    total_amount: Decimal = Field(..., description="Total revenue today")
+    sales: List[SaleResponse] = Field(default_factory=list, description="All sales today")
+    
+    class Config:
+        from_attributes = True
 
 # Return Schemas
 class ReturnBase(BaseModel):

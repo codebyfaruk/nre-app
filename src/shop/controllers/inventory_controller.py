@@ -1,6 +1,6 @@
 from typing import List 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, or_ , and_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from datetime import datetime
@@ -61,6 +61,55 @@ class InventoryController:
         await db.refresh(inventory)
         
         return inventory
+
+    @staticmethod
+    async def get_low_stock_items(
+        db: AsyncSession,
+        threshold: int = 10,
+        shop_id: int | None = None,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Inventory]:
+        """
+        Get inventory items with stock at or below threshold
+        
+        Args:
+            db: Database session
+            threshold: Stock level threshold (default: 10)
+            shop_id: Optional shop filter
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+        
+        Returns:
+            List of low stock inventory items
+        """
+        
+        # Build query
+        query = select(Inventory).where(
+            # Available quantity (quantity - reserved) is low OR needs restock
+            or_(
+                (Inventory.quantity - Inventory.reserved_quantity) <= threshold,
+                Inventory.quantity <= Inventory.min_stock_level
+            )
+        )
+        
+        # Filter by shop if specified
+        if shop_id is not None:
+            query = query.where(Inventory.shop_id == shop_id)
+        
+        # Order by most urgent first (lowest available stock)
+        query = query.order_by(
+            (Inventory.quantity - Inventory.reserved_quantity).asc()
+        )
+        
+        # Apply pagination
+        query = query.offset(skip).limit(limit)
+        
+        # Execute query
+        result = await db.execute(query)
+        inventory_items = result.scalars().all()
+        
+        return inventory_items
     
     @staticmethod
     async def get_inventory(

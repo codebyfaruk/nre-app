@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 from src.core.db import get_db
 from src.accounts.permissions import IsManager, IsStaff
@@ -9,7 +9,7 @@ from src.accounts.models import User
 from src.shop.controllers import SalesController
 from src.shop.schemas import (
     SaleCreate, SaleResponse,
-    ReturnCreate, ReturnUpdate, ReturnResponse
+    ReturnCreate, ReturnUpdate, ReturnResponse, TodaysSalesResponse
 )
 
 router = APIRouter()
@@ -52,6 +52,17 @@ async def get_sales(
         db, skip, limit, shop_id, customer_id, status, start_date, end_date
     )
     return sales
+
+@router.get("/today", response_model=TodaysSalesResponse)
+async def get_todays_sales(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsStaff())
+):
+    """
+    Get today's sales summary with details (Staff+)
+    """
+    result = await SalesController.get_todays_sales(db)
+    return result
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)

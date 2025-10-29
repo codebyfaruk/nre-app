@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 from src.shop.models import Sale, SaleItem, Return, Product, Inventory
@@ -12,6 +12,48 @@ from src.shop.schemas import SaleCreate, ReturnCreate, ReturnUpdate
 
 class SalesController:
     """Controller for sales and returns management"""
+
+    @staticmethod
+    async def get_todays_sales(db: AsyncSession) -> dict:
+        """
+        Get today's sales with summary statistics
+        
+        Returns:
+            dict: Contains date, count, total_amount, and sales list
+        """
+        from sqlalchemy.orm import selectinload
+        
+        today = date.today()
+        
+        # Query sales created today WITH relationships loaded
+        query = (
+            select(Sale)
+            .options(
+                selectinload(Sale.items),
+                selectinload(Sale.shop),
+                selectinload(Sale.customer),
+                selectinload(Sale.staff)
+            )
+            .where(func.date(Sale.created_at) == today)
+            .order_by(Sale.created_at.desc())
+        )
+        
+        result = await db.execute(query)
+        todays_sales = result.scalars().all()
+        
+        # Calculate totals
+        total_sales_count = len(todays_sales)
+        total_amount = sum(
+            sale.total_amount for sale in todays_sales
+        ) if todays_sales else Decimal('0.00')
+        
+        return {
+            "date": today,
+            "total_sales_count": total_sales_count,
+            "total_amount": total_amount,
+            "sales": todays_sales
+        }
+
     
     @staticmethod
     async def generate_invoice_number(db: AsyncSession) -> str:

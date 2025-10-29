@@ -53,6 +53,45 @@ docker-compose.override.yaml
 # Linux
 *.swp
 
-# Node / frontend (if any)
+# Node modules
+frontend/node_modules/
+
+# Vite build output
+frontend/dist/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependency directories
 node_modules/
-dist/
+bower_components/
+
+# Environment files
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Editor directories and files
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Optional: lock files (if you only use one package manager)
+# yarn.lock
+# package-lock.json
+# pnpm-lock.yaml
+
+# OS-specific files
+Thumbs.db

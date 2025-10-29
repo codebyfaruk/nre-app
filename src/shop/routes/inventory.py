@@ -25,6 +25,24 @@ async def create_inventory(
     inventory = await InventoryController.create_inventory(db, inventory_data)
     return inventory
 
+@router.get("/low-stock", response_model=List[InventoryResponse])
+async def get_low_stock_items(
+    threshold: int = Query(10, description="Stock level threshold", ge=0),
+    shop_id: int | None = Query(None, description="Filter by specific shop"),
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsStaff())
+):
+    """
+    Get all low stock items across all shops or specific shop (Staff+)
+    
+    Returns items where available_quantity <= threshold
+    """
+    inventory_items = await InventoryController.get_low_stock_items(
+        db, threshold, shop_id, skip, limit
+    )
+    return inventory_items
 
 @router.get("/shop/{shop_id}", response_model=List[InventoryResponse])
 async def get_shop_inventory(
@@ -126,3 +144,4 @@ async def release_inventory_stock(
     """
     inventory = await InventoryController.release_stock(db, inventory_id, quantity)
     return inventory
+
