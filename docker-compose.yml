@@ -15,6 +15,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./logs:/app/logs
+      - ./media:/app/media
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
@@ -65,8 +66,15 @@ services:
     volumes:
       - ./src:/app/src
       - ./logs:/app/logs
-    command: ["celery", "-A", "src.core.celery_app.celery", "worker", "--loglevel=info", "--concurrency=1"]
+    command:
+      [
+        "celery",
+        "-A",
+        "src.core.celery_app.celery",
+        "worker",
+        "--loglevel=info",
+        "--concurrency=1",
+      ]
 
 volumes:
   pgdata:
-  

@@ -1,8 +1,11 @@
+import os
 from fastapi import FastAPI
 from src.core.config import settings
 from src.core.route import include_routers
 from src.core.app_logging import get_app_logger
 from fastapi.middleware.cors import CORSMiddleware
+
+from fastapi.staticfiles import StaticFiles
 
 logger = get_app_logger()
 
@@ -24,6 +27,13 @@ app.add_middleware(
 )
 
 include_routers(app)
+
+# Create media directory if it doesn't exist
+os.makedirs("/app/media", exist_ok=True)
+
+# Mount static files
+app.mount("/media", StaticFiles(directory="/app/media"), name="media")
+
 
 @app.get("/")
 async def root():

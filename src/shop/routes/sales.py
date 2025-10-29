@@ -37,21 +37,20 @@ async def create_sale(
 async def get_sales(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    shop_id: Optional[int] = Query(None, description="Filter by shop"),
-    customer_id: Optional[int] = Query(None, description="Filter by customer"),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    start_date: Optional[datetime] = Query(None, description="Filter from date"),
-    end_date: Optional[datetime] = Query(None, description="Filter to date"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsStaff())
+    shop_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get list of sales with filters (Staff+)
-    """
-    sales = await SalesController.get_sales(
-        db, skip, limit, shop_id, customer_id, status, start_date, end_date
+    """Get sales with filters"""
+    return await SalesController.get_sales(
+        db=db,                   
+        skip=skip,
+        limit=limit,
+        shop_id=shop_id,
+        start_date=start_date,
+        end_date=end_date
     )
-    return sales
 
 @router.get("/today", response_model=TodaysSalesResponse)
 async def get_todays_sales(

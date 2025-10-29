@@ -1,4 +1,5 @@
-// src/components/products/index.js
+// src/components/products/index.js - COMPLETE
+
 export { ProductsHeader } from "./ProductsHeader";
 export { ProductsFilters } from "./ProductsFilters";
 export { ProductsTable } from "./ProductsTable";

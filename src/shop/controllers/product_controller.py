@@ -1,4 +1,5 @@
-# src/shop/controllers/product_controller.py - FIXED
+# src/shop/controllers/product_controller.py - COMPLETE
+
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
@@ -16,7 +17,7 @@ class ProductController:
     """Controller for product and category management"""
 
     # ==================== CATEGORY METHODS ====================
-
+    
     @staticmethod
     async def create_category(
         db: AsyncSession,
@@ -30,13 +31,14 @@ class ProductController:
             result = await db.execute(
                 select(Category).where(Category.slug == category_data.slug)
             )
+            
             if result.scalar_one_or_none():
                 logger.warning(f"Category slug already exists: {category_data.slug}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Category with this slug already exists"
                 )
-
+            
             category = Category(**category_data.model_dump())
             db.add(category)
             await db.commit()
@@ -60,12 +62,11 @@ class ProductController:
         """Get category by ID"""
         try:
             logger.info(f"Fetching category ID: {category_id}")
-            
             result = await db.execute(
                 select(Category).where(Category.id == category_id)
             )
-            category = result.scalar_one_or_none()
             
+            category = result.scalar_one_or_none()
             if not category:
                 logger.warning(f"Category ID {category_id} not found")
                 raise HTTPException(
@@ -94,7 +95,7 @@ class ProductController:
             query = select(Category)
             if is_active is not None:
                 query = query.where(Category.is_active == is_active)
-                
+            
             result = await db.execute(query)
             categories = result.scalars().all()
             
@@ -116,11 +117,11 @@ class ProductController:
             logger.info(f"Updating category ID: {category_id}")
             
             category = await ProductController.get_category(db, category_id)
-            update_data = category_data.model_dump(exclude_unset=True)
             
+            update_data = category_data.model_dump(exclude_unset=True)
             for field, value in update_data.items():
                 setattr(category, field, value)
-                
+            
             await db.commit()
             await db.refresh(category)
             
@@ -160,7 +161,32 @@ class ProductController:
             )
 
     # ==================== PRODUCT METHODS ====================
-
+    
+    # ✅ Helper function for unique slug generation
+    @staticmethod
+    async def _generate_unique_slug(
+        db: AsyncSession,
+        base_slug: str,
+        product_id: Optional[int] = None
+    ) -> str:
+        """Generate a unique slug by appending a counter if needed."""
+        slug = base_slug
+        counter = 1
+        
+        while True:
+            query = select(Product).where(Product.slug == slug)
+            if product_id:
+                query = query.where(Product.id != product_id)
+            
+            result = await db.execute(query)
+            existing = result.scalar_one_or_none()
+            
+            if not existing:
+                return slug
+            
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+    
     @staticmethod
     async def create_product(
         db: AsyncSession,
@@ -170,18 +196,26 @@ class ProductController:
         try:
             logger.info(f"Creating new product: {product_data.name}")
             
-            # Check if SKU exists
+            # ✅ Check if SKU exists
             result = await db.execute(
                 select(Product).where(Product.sku == product_data.sku)
             )
+            
             if result.scalar_one_or_none():
                 logger.warning(f"Product SKU already exists: {product_data.sku}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Product with this SKU already exists"
                 )
-
-            product = Product(**product_data.model_dump())
+            
+            # ✅ Generate unique slug
+            unique_slug = await ProductController._generate_unique_slug(db, product_data.slug)
+            
+            # Create product with unique slug
+            product_dict = product_data.model_dump()
+            product_dict['slug'] = unique_slug
+            
+            product = Product(**product_dict)
             db.add(product)
             await db.commit()
             await db.refresh(product)
@@ -205,13 +239,17 @@ class ProductController:
         try:
             logger.info(f"Fetching product ID: {product_id}")
             
+            # ✅ Load product WITH inventory and category relationships
             result = await db.execute(
                 select(Product)
-                .options(selectinload(Product.category))
+                .options(
+                    selectinload(Product.category),
+                    selectinload(Product.inventory)  # ✅ Load inventory
+                )
                 .where(Product.id == product_id)
             )
-            product = result.scalar_one_or_none()
             
+            product = result.scalar_one_or_none()
             if not product:
                 logger.warning(f"Product ID {product_id} not found")
                 raise HTTPException(
@@ -241,12 +279,18 @@ class ProductController:
         try:
             logger.info(f"Fetching products (skip={skip}, limit={limit}, category={category_id}, search={search})")
             
-            query = select(Product).options(selectinload(Product.category))
+            # ✅ Load products WITH inventory and category relationships
+            query = select(Product).options(
+                selectinload(Product.category),
+                selectinload(Product.inventory)  # ✅ Load inventory
+            )
             
             if category_id:
                 query = query.where(Product.category_id == category_id)
+            
             if is_active is not None:
                 query = query.where(Product.is_active == is_active)
+            
             if search:
                 query = query.where(
                     or_(
@@ -254,7 +298,7 @@ class ProductController:
                         Product.sku.ilike(f"%{search}%")
                     )
                 )
-                
+            
             query = query.offset(skip).limit(limit)
             result = await db.execute(query)
             products = result.scalars().all()
@@ -277,18 +321,30 @@ class ProductController:
             logger.info(f"Updating product ID: {product_id}")
             
             product = await ProductController.get_product(db, product_id)
+            
             update_data = product_data.model_dump(exclude_unset=True)
+            
+            # ✅ Check if slug needs to be updated and make it unique
+            if "slug" in update_data and update_data["slug"] != product.slug:
+                unique_slug = await ProductController._generate_unique_slug(
+                    db, 
+                    update_data["slug"], 
+                    product_id
+                )
+                update_data["slug"] = unique_slug
             
             for field, value in update_data.items():
                 setattr(product, field, value)
-                
-            await db.commit()
-            await db.refresh(product)
             
-            # Reload with category
+            await db.commit()
+            
+            # Reload with category and inventory
             result = await db.execute(
                 select(Product)
-                .options(selectinload(Product.category))
+                .options(
+                    selectinload(Product.category),
+                    selectinload(Product.inventory)
+                )
                 .where(Product.id == product_id)
             )
             product = result.scalar_one()

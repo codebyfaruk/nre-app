@@ -1,6 +1,8 @@
+# src/shop/schemas/product.py - FIXED
+
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from decimal import Decimal
 
 
@@ -41,6 +43,20 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+# ✅ Simple Inventory Response for nested use
+class InventoryInProductResponse(BaseModel):
+    """Simplified inventory response for use in ProductResponse"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    shop_id: int
+    quantity: int
+    reserved_quantity: int = 0
+    min_stock_level: int
+    max_stock_level: int
+
+
+# ✅ FIXED - NOW INCLUDES INVENTORY
 class ProductResponse(ProductBase):
     model_config = ConfigDict(from_attributes=True)
     
@@ -48,3 +64,6 @@ class ProductResponse(ProductBase):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+    
+    # ✅ ADD THIS - Include inventory list
+    inventory: List[InventoryInProductResponse] = []

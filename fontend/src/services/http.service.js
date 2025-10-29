@@ -1,4 +1,5 @@
-// src/services/http.service.js - COMPLETE WITH ALL ENDPOINTS
+// src/services/http.service.js - FIXED TOKEN EXPIRY HANDLING
+
 import axios from "axios";
 
 const API_BASE_URL = "http://0.0.0.0:8000/api";
@@ -11,11 +12,26 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
-// Request interceptor
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+
+  failedQueue = [];
+};
+
+// ✅ Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const token = user.access_token || user.token;
+    const user = JSON.parse(localStorage.getItem("user"));
+    const token = user?.access_token || user?.token;
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -24,30 +40,94 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("❌ Request Error:", error);
+    console.error("Request Error:", error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor
+// ✅ Response interceptor with AUTOMATIC TOKEN REFRESH
 apiClient.interceptors.response.use(
   (response) => {
     return response;
   },
   async (error) => {
-    console.error(
-      "❌ API Error:",
-      error.response?.status,
-      error.response?.data
-    );
+    const originalRequest = error.config;
+
+    // ✅ Handle 401 Unauthorized
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // ✅ Queue requests while refreshing
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const user = JSON.parse(localStorage.getItem("user"));
+      const refreshToken = user?.refresh_token;
+
+      if (!refreshToken) {
+        // ✅ No refresh token → logout
+        console.error("No refresh token found. Logging out...");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return Promise.reject(error);
+      }
+
+      try {
+        // ✅ Try to refresh token
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+          refresh_token: refreshToken,
+        });
+
+        const newAccessToken = response.data.access_token;
+
+        // ✅ Update localStorage with new token
+        user.access_token = newAccessToken;
+        localStorage.setItem("user", JSON.stringify(user));
+
+        // ✅ Update axios default header
+        apiClient.defaults.headers.common[
+          "Authorization"
+        ] = `Bearer ${newAccessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+        // ✅ Process queued requests
+        processQueue(null, newAccessToken);
+        isRefreshing = false;
+
+        // ✅ Retry original request
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        // ✅ Refresh failed → logout
+        processQueue(refreshError, null);
+        isRefreshing = false;
+
+        console.error("Token refresh failed. Logging out...");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // ✅ Log other errors
+    console.error("API Error:", error.response?.status, error.response?.data);
     return Promise.reject(error);
   }
 );
 
 export const httpService = {
-  // ============================================
-  // 🔐 AUTH ENDPOINTS
-  // ============================================
+  // AUTH ENDPOINTS
   login: async (username, password) => {
     const response = await apiClient.post("/auth/login", {
       username,
@@ -68,11 +148,9 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ============================================
-  // 👥 USERS ENDPOINTS
-  // ============================================
+  // USERS ENDPOINTS
   getUsers: async () => {
-    const response = await apiClient.get("/users/");
+    const response = await apiClient.get("/users");
     return { success: true, data: response.data };
   },
 
@@ -81,39 +159,13 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ✅ FIXED: Create user with role_names
   createUser: async (userData) => {
-    const response = await apiClient.post("/auth/register", {
-      username: userData.username,
-      email: userData.email,
-      password: userData.password,
-      role_names: userData.role_names || [],
-      is_staff: userData.is_staff ?? true,
-      is_active: userData.is_active ?? true,
-    });
+    const response = await apiClient.post("/auth/register", userData);
     return { success: true, data: response.data };
   },
 
-  // ✅ FIXED: Update user with role_names
   updateUser: async (id, userData) => {
-    const payload = {
-      username: userData.username,
-      email: userData.email,
-      is_active: userData.is_active,
-      is_staff: userData.is_staff,
-    };
-
-    // Only include password if provided
-    if (userData.password) {
-      payload.password = userData.password;
-    }
-
-    // Include role_names if provided
-    if (userData.role_names) {
-      payload.role_names = userData.role_names;
-    }
-
-    const response = await apiClient.put(`/users/${id}`, payload);
+    const response = await apiClient.put(`/users/${id}`, userData);
     return { success: true, data: response.data };
   },
 
@@ -122,9 +174,8 @@ export const httpService = {
     return { success: true };
   },
 
-  // ✅ FIXED: Correct endpoint for roles
   getRoles: async () => {
-    const response = await apiClient.get("/users/roles/");
+    const response = await apiClient.get("/users/roles");
     return { success: true, data: response.data };
   },
 
@@ -143,11 +194,9 @@ export const httpService = {
     return { success: true };
   },
 
-  // ============================================
-  // 🏪 SHOPS ENDPOINTS
-  // ============================================
+  // SHOPS ENDPOINTS
   getShops: async () => {
-    const response = await apiClient.get("/shops/");
+    const response = await apiClient.get("/shops");
     return { success: true, data: response.data };
   },
 
@@ -157,7 +206,7 @@ export const httpService = {
   },
 
   createShop: async (shopData) => {
-    const response = await apiClient.post("/shops/", shopData);
+    const response = await apiClient.post("/shops", shopData);
     return { success: true, data: response.data };
   },
 
@@ -184,11 +233,9 @@ export const httpService = {
     return { success: true };
   },
 
-  // ============================================
-  // 📦 PRODUCTS ENDPOINTS
-  // ============================================
+  // PRODUCTS ENDPOINTS
   getProducts: async () => {
-    const response = await apiClient.get("/products/");
+    const response = await apiClient.get("/products");
     return { success: true, data: response.data };
   },
 
@@ -198,7 +245,7 @@ export const httpService = {
   },
 
   createProduct: async (productData) => {
-    const response = await apiClient.post("/products/", productData);
+    const response = await apiClient.post("/products", productData);
     return { success: true, data: response.data };
   },
 
@@ -210,6 +257,19 @@ export const httpService = {
   deleteProduct: async (id) => {
     await apiClient.delete(`/products/${id}`);
     return { success: true };
+  },
+
+  // Product Image Upload
+  uploadProductImage: async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await apiClient.post("/products/upload-image", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return { success: true, data: response.data };
   },
 
   // Categories
@@ -236,16 +296,9 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  deleteCategory: async (id) => {
-    await apiClient.delete(`/products/categories/${id}`);
-    return { success: true };
-  },
-
-  // ============================================
-  // 📊 INVENTORY ENDPOINTS
-  // ============================================
+  // INVENTORY ENDPOINTS
   getInventory: async (shopId = null) => {
-    const url = shopId ? `/inventory/shop/${shopId}` : "/inventory/";
+    const url = shopId ? `/inventory/shop/${shopId}` : "/inventory";
     const response = await apiClient.get(url);
     return { success: true, data: response.data };
   },
@@ -261,7 +314,7 @@ export const httpService = {
   },
 
   createInventory: async (inventoryData) => {
-    const response = await apiClient.post("/inventory/", inventoryData);
+    const response = await apiClient.post("/inventory", inventoryData);
     return { success: true, data: response.data };
   },
 
@@ -299,11 +352,9 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ============================================
-  // 💰 SALES ENDPOINTS
-  // ============================================
-  getSales: async (params = {}) => {
-    const response = await apiClient.get("/sales/", { params });
+  // SALES ENDPOINTS
+  getSales: async (params) => {
+    const response = await apiClient.get("/sales", { params });
     return { success: true, data: response.data };
   },
 
@@ -313,7 +364,7 @@ export const httpService = {
   },
 
   createSale: async (saleData) => {
-    const response = await apiClient.post("/sales/", saleData);
+    const response = await apiClient.post("/sales", saleData);
     return { success: true, data: response.data };
   },
 
@@ -322,32 +373,20 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  getShopSales: async (shopId) => {
-    const response = await apiClient.get(`/sales/shop/${shopId}`);
-    return { success: true, data: response.data };
-  },
-
   getTodaySales: async () => {
     const response = await apiClient.get("/sales/today");
     return { success: true, data: response.data };
   },
 
-  // ============================================
-  // ↩️ RETURNS ENDPOINTS
-  // ============================================
+  // RETURNS ENDPOINTS
   getReturns: async (status = null) => {
     const params = status ? { status } : {};
-    const response = await apiClient.get("/sales/returns/", { params });
-    return { success: true, data: response.data };
-  },
-
-  getReturn: async (id) => {
-    const response = await apiClient.get(`/sales/returns/${id}`);
+    const response = await apiClient.get("/sales/returns", { params });
     return { success: true, data: response.data };
   },
 
   createReturn: async (returnData) => {
-    const response = await apiClient.post("/sales/returns/", returnData);
+    const response = await apiClient.post("/sales/returns", returnData);
     return { success: true, data: response.data };
   },
 
@@ -359,14 +398,7 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  getSaleReturns: async (saleId) => {
-    const response = await apiClient.get(`/sales/returns/sale/${saleId}`);
-    return { success: true, data: response.data };
-  },
-
-  // ============================================
-  // 👤 CUSTOMERS ENDPOINTS
-  // ============================================
+  // CUSTOMERS ENDPOINTS
   createCustomerProfile: async (profileData) => {
     const response = await apiClient.post("/customers/profiles", profileData);
     return { success: true, data: response.data };
@@ -388,11 +420,6 @@ export const httpService = {
       profileData
     );
     return { success: true, data: response.data };
-  },
-
-  deleteCustomerProfile: async (profileId) => {
-    await apiClient.delete(`/customers/profiles/${profileId}`);
-    return { success: true };
   },
 
   // Addresses
@@ -424,76 +451,12 @@ export const httpService = {
     return { success: true };
   },
 
-  setDefaultAddress: async (addressId) => {
-    const response = await apiClient.post(
-      `/customers/addresses/${addressId}/set-default`
-    );
-    return { success: true, data: response.data };
-  },
-
-  // ============================================
-  // 🚚 SUPPLIERS ENDPOINTS (if you have this module)
-  // ============================================
-  getSuppliers: async () => {
-    const response = await apiClient.get("/suppliers/");
-    return { success: true, data: response.data };
-  },
-
-  getSupplier: async (id) => {
-    const response = await apiClient.get(`/suppliers/${id}`);
-    return { success: true, data: response.data };
-  },
-
-  createSupplier: async (supplierData) => {
-    const response = await apiClient.post("/suppliers/", supplierData);
-    return { success: true, data: response.data };
-  },
-
-  updateSupplier: async (id, supplierData) => {
-    const response = await apiClient.put(`/suppliers/${id}`, supplierData);
-    return { success: true, data: response.data };
-  },
-
-  deleteSupplier: async (id) => {
-    await apiClient.delete(`/suppliers/${id}`);
-    return { success: true };
-  },
-
-  // ============================================
-  // 💳 PAYMENTS ENDPOINTS (if you have this module)
-  // ============================================
-  getPayments: async (saleId = null) => {
-    const url = saleId ? `/payments/sale/${saleId}` : "/payments/";
-    const response = await apiClient.get(url);
-    return { success: true, data: response.data };
-  },
-
-  getPayment: async (id) => {
-    const response = await apiClient.get(`/payments/${id}`);
-    return { success: true, data: response.data };
-  },
-
-  createPayment: async (paymentData) => {
-    const response = await apiClient.post("/payments/", paymentData);
-    return { success: true, data: response.data };
-  },
-
-  refundPayment: async (id, refundData) => {
-    const response = await apiClient.post(`/payments/${id}/refund`, refundData);
-    return { success: true, data: response.data };
-  },
-
-  // ============================================
-  // 📊 DASHBOARD/STATS (Custom implementations)
-  // ============================================
+  // DASHBOARD/STATS
   getDashboardStats: async () => {
-    // Since you don't have a /dashboard/stats endpoint,
-    // we'll fetch the needed data separately and combine it
     try {
-      const [sales, products, inventory] = await Promise.all([
-        apiClient.get("/sales/"),
-        apiClient.get("/products/"),
-        apiClient.get("/inventory/"),
+      const [sales, products] = await Promise.all([
+        apiClient.get("/sales"),
+        apiClient.get("/products"),
       ]);
 
       return {
@@ -501,60 +464,15 @@ export const httpService = {
         data: {
           totalSales: sales.data.length,
           totalProducts: products.data.length,
-          totalInventoryItems: inventory.data.length,
           sales: sales.data,
           products: products.data,
-          inventory: inventory.data,
         },
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        error: error.message,
+      };
     }
-  },
-
-  // ============================================
-  // 📈 REPORTS ENDPOINTS (if you have this module)
-  // ============================================
-  getSalesReport: async (startDate, endDate, shopId = null) => {
-    const params = { start_date: startDate, end_date: endDate };
-    if (shopId) params.shop_id = shopId;
-    const response = await apiClient.get("/reports/sales", { params });
-    return { success: true, data: response.data };
-  },
-
-  getInventoryReport: async (shopId = null) => {
-    const params = shopId ? { shop_id: shopId } : {};
-    const response = await apiClient.get("/reports/inventory", { params });
-    return { success: true, data: response.data };
-  },
-
-  getProductPerformance: async (startDate, endDate) => {
-    const response = await apiClient.get("/reports/product-performance", {
-      params: { start_date: startDate, end_date: endDate },
-    });
-    return { success: true, data: response.data };
-  },
-
-  // ============================================
-  // 🔔 NOTIFICATIONS ENDPOINTS (if you have this module)
-  // ============================================
-  getNotifications: async () => {
-    const response = await apiClient.get("/notifications/");
-    return { success: true, data: response.data };
-  },
-
-  markNotificationAsRead: async (id) => {
-    const response = await apiClient.put(`/notifications/${id}/read`);
-    return { success: true, data: response.data };
-  },
-
-  markAllNotificationsAsRead: async () => {
-    const response = await apiClient.put("/notifications/read-all");
-    return { success: true, data: response.data };
-  },
-
-  deleteNotification: async (id) => {
-    await apiClient.delete(`/notifications/${id}`);
-    return { success: true };
   },
 };
