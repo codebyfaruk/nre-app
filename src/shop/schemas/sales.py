@@ -79,15 +79,40 @@ class SaleResponse(BaseModel):
     updated_at: Optional[datetime]
     items: List[SaleItemResponse] = []
 
+# ✅ ADD THIS - Lightweight sale summary
+class SaleSummary(BaseModel):
+    """Lightweight sale summary for lists/dashboard"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    invoice_number: str
+    shop_id: int
+    customer_id: Optional[int]
+    staff_id: Optional[int]
+    subtotal: Decimal
+    discount_amount: Decimal
+    tax_amount: Decimal
+    total_amount: Decimal
+    payment_method: PaymentMethodEnum
+    payment_reference: Optional[str]
+    status: SaleStatusEnum
+    notes: Optional[str]
+    sale_date: datetime
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+# ✅ UPDATE THIS - Change to use SaleSummary
 class TodaysSalesResponse(BaseModel):
     """Today's sales summary with full details"""
     date: DateType = Field(..., description="Today's date")
     total_sales_count: int = Field(..., description="Number of sales today")
     total_amount: Decimal = Field(..., description="Total revenue today")
-    sales: List[SaleResponse] = Field(default_factory=list, description="All sales today")
+    sales: List[SaleSummary] = Field(default_factory=list, description="All sales today")  # ✅ Changed here
     
     class Config:
         from_attributes = True
+
 
 # Return Schemas
 class ReturnBase(BaseModel):

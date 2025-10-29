@@ -98,7 +98,7 @@ export const SalesDetailModal = ({ sale, shop, onClose }) => {
                   <span className="text-gray-600 w-32">Method:</span>
                   <span className="font-medium text-gray-900">
                     {getPaymentIcon(sale.paymentMethod)}{" "}
-                    {sale.paymentMethod.toUpperCase()}
+                    {sale.payment_method.toUpperCase()}
                   </span>
                 </div>
                 {sale.paymentReference && (
