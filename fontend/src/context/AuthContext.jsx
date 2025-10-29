@@ -22,7 +22,6 @@ export function AuthProvider({ children }) {
   const getUserFromToken = (token) => {
     try {
       const decoded = jwtDecode(token);
-      console.log("🔓 Decoded JWT:", decoded);
 
       return {
         id: decoded.sub,
@@ -41,14 +40,12 @@ export function AuthProvider({ children }) {
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        console.log("📦 Loaded from storage:", parsed);
 
         // If we only have tokens, decode them to get user info
         if (parsed.access_token && !parsed.username) {
           const userInfo = getUserFromToken(parsed.access_token);
           if (userInfo) {
             const fullUser = { ...parsed, ...userInfo };
-            console.log("✅ Reconstructed user from token:", fullUser);
             setUser(fullUser);
             localStorage.setItem("user", JSON.stringify(fullUser));
           }
@@ -66,7 +63,6 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const response = await apiService.login(username, password);
-      console.log("📥 Login response:", response);
 
       if (response.success && response.data) {
         const tokenData = response.data;
@@ -84,7 +80,6 @@ export function AuthProvider({ children }) {
           ...userInfo,
         };
 
-        console.log("✅ Complete user data:", userData);
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
         return { success: true };

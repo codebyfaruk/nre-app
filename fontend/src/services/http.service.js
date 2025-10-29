@@ -21,11 +21,6 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    console.log(
-      `🌐 API Request: ${config.method?.toUpperCase()} ${config.url}`
-    );
-    console.log(`📤 Request Data:`, config.data);
     return config;
   },
   (error) => {
@@ -37,8 +32,6 @@ apiClient.interceptors.request.use(
 // Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
-    console.log(`📥 Response Data:`, response.data);
     return response;
   },
   async (error) => {
