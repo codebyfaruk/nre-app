@@ -100,7 +100,7 @@ export const SalesTable = ({ sales, onViewDetails, loading }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-gray-900">
-                    {formatCurrency(sale.totalAmount)}
+                    {formatCurrency(sale.total_amount)}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <button

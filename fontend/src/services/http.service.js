@@ -1,4 +1,4 @@
-// src/services/http.service.js - FIXED TOKEN EXPIRY HANDLING
+// src/services/http.service.js - PRODUCTION READY WITH AUTO TOKEN REFRESH
 
 import axios from "axios";
 
@@ -23,11 +23,10 @@ const processQueue = (error, token = null) => {
       prom.resolve(token);
     }
   });
-
   failedQueue = [];
 };
 
-// ✅ Request interceptor
+// ✅ Request interceptor - Add token to every request
 apiClient.interceptors.request.use(
   (config) => {
     const user = JSON.parse(localStorage.getItem("user"));
@@ -40,12 +39,12 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("Request Error:", error);
+    console.error("❌ Request Error:", error);
     return Promise.reject(error);
   }
 );
 
-// ✅ Response interceptor with AUTOMATIC TOKEN REFRESH
+// ✅ Response interceptor - Handle 401 & auto-refresh
 apiClient.interceptors.response.use(
   (response) => {
     return response;
@@ -53,10 +52,12 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // ✅ Handle 401 Unauthorized
+    // ✅ Handle 401 Unauthorized (Token Expired)
     if (error.response?.status === 401 && !originalRequest._retry) {
+      console.warn("⚠️ Access token expired! Attempting to refresh...");
+
       if (isRefreshing) {
-        // ✅ Queue requests while refreshing
+        // ✅ Queue requests while token refresh is in progress
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -72,27 +73,27 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const user = JSON.parse(localStorage.getItem("user"));
-      const refreshToken = user?.refresh_token;
-
-      if (!refreshToken) {
-        // ✅ No refresh token → logout
-        console.error("No refresh token found. Logging out...");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-        return Promise.reject(error);
-      }
-
       try {
-        // ✅ Try to refresh token
+        const user = JSON.parse(localStorage.getItem("user"));
+        const refreshToken = user?.refresh_token;
+
+        if (!refreshToken) {
+          throw new Error("No refresh token found");
+        }
+
+        console.log("🔄 Refreshing access token...");
+
+        // ✅ Call refresh endpoint
         const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
           refresh_token: refreshToken,
         });
 
         const newAccessToken = response.data.access_token;
+        const newRefreshToken = response.data.refresh_token || refreshToken;
 
-        // ✅ Update localStorage with new token
+        // ✅ Update localStorage with new tokens
         user.access_token = newAccessToken;
+        user.refresh_token = newRefreshToken;
         localStorage.setItem("user", JSON.stringify(user));
 
         // ✅ Update axios default header
@@ -101,54 +102,106 @@ apiClient.interceptors.response.use(
         ] = `Bearer ${newAccessToken}`;
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
-        // ✅ Process queued requests
+        // ✅ Process queued requests with new token
         processQueue(null, newAccessToken);
         isRefreshing = false;
+
+        console.log("✅ Token refreshed successfully!");
 
         // ✅ Retry original request
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // ✅ Refresh failed → logout
+        console.error("❌ Token refresh failed:", refreshError.message);
+
+        // ✅ Refresh failed → clear storage and redirect to login
         processQueue(refreshError, null);
         isRefreshing = false;
 
-        console.error("Token refresh failed. Logging out...");
         localStorage.removeItem("user");
+        localStorage.removeItem("isAuthenticated");
         window.location.href = "/login";
 
         return Promise.reject(refreshError);
       }
     }
 
-    // ✅ Log other errors
-    console.error("API Error:", error.response?.status, error.response?.data);
+    // ✅ Handle 422 Validation Error
+    if (error.response?.status === 422) {
+      console.error("❌ Validation Error (422):", error.response.data);
+    }
+
+    // ✅ Handle 403 Forbidden
+    if (error.response?.status === 403) {
+      console.error("❌ Access Forbidden (403)");
+    }
+
+    // ✅ Handle 500 Server Error
+    if (error.response?.status === 500) {
+      console.error("❌ Server Error (500)");
+    }
+
+    // ✅ Log all API errors
+    console.error(
+      `❌ API Error [${error.response?.status}]:`,
+      error.response?.data || error.message
+    );
+
     return Promise.reject(error);
   }
 );
 
 export const httpService = {
-  // AUTH ENDPOINTS
+  // ==================== AUTH ENDPOINTS ====================
   login: async (username, password) => {
-    const response = await apiClient.post("/auth/login", {
-      username,
-      password,
-    });
-    return { success: true, data: response.data };
+    try {
+      const response = await apiClient.post("/auth/login", {
+        username,
+        password,
+      });
+      console.log("✅ Login successful");
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error("❌ Login failed:", error.response?.data);
+      return { success: false, error: error.response?.data };
+    }
   },
 
   refreshToken: async (refreshToken) => {
-    const response = await apiClient.post("/auth/refresh", {
-      refresh_token: refreshToken,
-    });
-    return { success: true, data: response.data };
+    try {
+      const response = await apiClient.post("/auth/refresh", {
+        refresh_token: refreshToken,
+      });
+      console.log("✅ Token refresh successful");
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error("❌ Token refresh failed:", error.response?.data);
+      return { success: false, error: error.response?.data };
+    }
   },
 
   getMe: async () => {
-    const response = await apiClient.get("/auth/me");
-    return { success: true, data: response.data };
+    try {
+      const response = await apiClient.get("/auth/me");
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error("❌ GetMe failed:", error.response?.data);
+      return { success: false, error: error.response?.data };
+    }
   },
 
-  // USERS ENDPOINTS
+  logout: async () => {
+    try {
+      localStorage.removeItem("user");
+      localStorage.removeItem("isAuthenticated");
+      console.log("✅ Logout successful");
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Logout failed:", error);
+      return { success: false, error };
+    }
+  },
+
+  // ==================== USERS ENDPOINTS ====================
   getUsers: async () => {
     const response = await apiClient.get("/users");
     return { success: true, data: response.data };
@@ -194,7 +247,7 @@ export const httpService = {
     return { success: true };
   },
 
-  // SHOPS ENDPOINTS
+  // ==================== SHOPS ENDPOINTS ====================
   getShops: async () => {
     const response = await apiClient.get("/shops");
     return { success: true, data: response.data };
@@ -233,7 +286,7 @@ export const httpService = {
     return { success: true };
   },
 
-  // PRODUCTS ENDPOINTS
+  // ==================== PRODUCTS ENDPOINTS ====================
   getProducts: async () => {
     const response = await apiClient.get("/products");
     return { success: true, data: response.data };
@@ -259,7 +312,6 @@ export const httpService = {
     return { success: true };
   },
 
-  // Product Image Upload
   uploadProductImage: async (file) => {
     const formData = new FormData();
     formData.append("file", file);
@@ -272,7 +324,6 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // Categories
   getCategories: async () => {
     const response = await apiClient.get("/products/categories");
     return { success: true, data: response.data };
@@ -296,7 +347,7 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // INVENTORY ENDPOINTS
+  // ==================== INVENTORY ENDPOINTS ====================
   getInventory: async (shopId = null) => {
     const url = shopId ? `/inventory/shop/${shopId}` : "/inventory";
     const response = await apiClient.get(url);
@@ -352,7 +403,7 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // SALES ENDPOINTS
+  // ==================== SALES ENDPOINTS ====================
   getSales: async (params) => {
     const response = await apiClient.get("/sales", { params });
     return { success: true, data: response.data };
@@ -378,15 +429,15 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // RETURNS ENDPOINTS
+  // ==================== RETURNS ENDPOINTS ====================
   getReturns: async (status = null) => {
     const params = status ? { status } : {};
-    const response = await apiClient.get("/sales/returns", { params });
+    const response = await apiClient.get("/sales/returns/", { params });
     return { success: true, data: response.data };
   },
 
   createReturn: async (returnData) => {
-    const response = await apiClient.post("/sales/returns", returnData);
+    const response = await apiClient.post("/sales/returns/", returnData);
     return { success: true, data: response.data };
   },
 
@@ -398,7 +449,7 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // CUSTOMERS ENDPOINTS
+  // ==================== CUSTOMERS ENDPOINTS ====================
   createCustomerProfile: async (profileData) => {
     const response = await apiClient.post("/customers/profiles", profileData);
     return { success: true, data: response.data };
@@ -422,7 +473,6 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // Addresses
   createAddress: async (addressData) => {
     const response = await apiClient.post("/customers/addresses", addressData);
     return { success: true, data: response.data };
@@ -451,7 +501,7 @@ export const httpService = {
     return { success: true };
   },
 
-  // DASHBOARD/STATS
+  // ==================== DASHBOARD/STATS ====================
   getDashboardStats: async () => {
     try {
       const [sales, products] = await Promise.all([
@@ -469,6 +519,7 @@ export const httpService = {
         },
       };
     } catch (error) {
+      console.error("❌ Dashboard stats error:", error);
       return {
         success: false,
         error: error.message,
@@ -476,3 +527,4 @@ export const httpService = {
     }
   },
 };
+export default httpService;

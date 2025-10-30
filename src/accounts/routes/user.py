@@ -24,6 +24,27 @@ async def get_users(
     return users
 
 
+@router.post("/roles", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
+async def create_role(
+    role_data: RoleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsSuperAdmin())
+):
+    """Create a new role (SuperAdmin only)"""
+    role = await UserController.create_role(db, role_data)
+    return role
+
+
+@router.get("/roles", response_model=List[RoleResponse])
+async def get_roles(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsStaff())
+):
+    """Get all roles"""
+    roles = await UserController.get_roles(db)
+    return roles
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
@@ -104,24 +125,3 @@ async def remove_role_from_user(
     """Remove a role from a user (SuperAdmin only)"""
     await UserController.remove_role(db, user_id, role_id)
     return None
-
-
-@router.post("/roles", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
-async def create_role(
-    role_data: RoleCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsSuperAdmin())
-):
-    """Create a new role (SuperAdmin only)"""
-    role = await UserController.create_role(db, role_data)
-    return role
-
-
-@router.get("/roles/", response_model=List[RoleResponse])
-async def get_roles(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsStaff())
-):
-    """Get all roles"""
-    roles = await UserController.get_roles(db)
-    return roles

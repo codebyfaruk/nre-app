@@ -63,6 +63,46 @@ async def get_todays_sales(
     result = await SalesController.get_todays_sales(db)
     return result
 
+@router.post("/returns", response_model=ReturnResponse, status_code=status.HTTP_201_CREATED, tags=["Returns"])
+async def create_return(
+    return_data: ReturnCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsStaff())
+):
+    """
+    Create a product return request (Staff+)
+    """
+    product_return = await SalesController.create_return(db, return_data)
+    return product_return
+
+
+@router.get("/returns", response_model=List[ReturnResponse], tags=["Returns"])
+async def get_returns(
+    status: Optional[str] = Query(None, description="Filter by status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsStaff())
+):
+    """Get returns with optional status filter"""
+    return await SalesController.get_returns(db=db, status=status)
+
+@router.put("/returns/{return_id}/process", response_model=ReturnResponse, tags=["Returns"])
+async def process_return(
+    return_id: int,
+    return_update: ReturnUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsManager())
+):
+    """
+    Process (approve/reject) a return (Manager+)
+    
+    If approved, inventory will be restored automatically.
+    """
+    product_return = await SalesController.process_return(
+        db, return_id, return_update, current_user.id
+    )
+    return product_return
+
+
 
 @router.get("/{sale_id}", response_model=SaleResponse)
 async def get_sale(
@@ -89,45 +129,3 @@ async def cancel_sale(
     """
     sale = await SalesController.cancel_sale(db, sale_id, reason)
     return sale
-
-
-# ==================== Returns Routes ====================
-
-@router.post("/returns/", response_model=ReturnResponse, status_code=status.HTTP_201_CREATED, tags=["Returns"])
-async def create_return(
-    return_data: ReturnCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsStaff())
-):
-    """
-    Create a product return request (Staff+)
-    """
-    product_return = await SalesController.create_return(db, return_data)
-    return product_return
-
-
-@router.get("/returns/", response_model=List[ReturnResponse])
-async def get_returns(
-    status: Optional[str] = Query(None, description="Filter by status"),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get returns with optional status filter"""
-    return await SalesController.get_returns(db=db, return_status=status)
-
-
-@router.put("/returns/{return_id}/process", response_model=ReturnResponse, tags=["Returns"])
-async def process_return(
-    return_id: int,
-    return_update: ReturnUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsManager())
-):
-    """
-    Process (approve/reject) a return (Manager+)
-    
-    If approved, inventory will be restored automatically.
-    """
-    product_return = await SalesController.process_return(
-        db, return_id, return_update, current_user.id
-    )
-    return product_return

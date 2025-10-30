@@ -1,4 +1,4 @@
-// src/pages/Sales.jsx - FIXED COMPLETE VERSION
+// src/pages/Sales.jsx - CORRECT VERSION WITH FIXED HANDLERS
 import { useState, useEffect } from "react";
 import { Layout } from "../components/layout/Layout";
 import {
@@ -20,7 +20,6 @@ export const Sales = () => {
   const [selectedShop, setSelectedShop] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedSale, setSelectedSale] = useState(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -43,24 +42,20 @@ export const Sales = () => {
     }
   };
 
-  // ✅ FIXED: Filter with snake_case field names
+  // ✅ Filter with snake_case field names
   const filteredSales = sales.filter((sale) => {
-    // Search filter - Use optional chaining to prevent errors
     const matchesSearch =
       sale.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sale.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sale.customer_phone?.includes(searchTerm);
 
-    // ✅ FIXED: Use sale_date (snake_case)
     const saleDate = new Date(sale.sale_date).toISOString().split("T")[0];
     const matchesDateFrom = !dateFrom || saleDate >= dateFrom;
     const matchesDateTo = !dateTo || saleDate <= dateTo;
 
-    // ✅ FIXED: Use shop_id (snake_case)
     const matchesShop =
       !selectedShop || sale.shop_id === parseInt(selectedShop);
 
-    // ✅ FIXED: Use payment_method (snake_case)
     const matchesPayment =
       !paymentMethod || sale.payment_method === paymentMethod;
 
@@ -73,41 +68,44 @@ export const Sales = () => {
     );
   });
 
-  // ✅ FIXED: Calculate today's data with snake_case
+  // ✅ Calculate today's data
   const today = new Date().toISOString().split("T")[0];
   const todaySalesData = sales.filter(
     (sale) => new Date(sale.sale_date).toISOString().split("T")[0] === today
   );
 
-  // ✅ FIXED: Use total_amount (snake_case)
-  const todayRevenue = todaySalesData.reduce(
-    (sum, sale) => sum + (sale.total_amount || 0),
-    0
-  );
+  const todayRevenue = todaySalesData.reduce((sum, sale) => {
+    const amount = parseFloat(sale.total_amount);
+    return sum + (isNaN(amount) ? 0 : amount);
+  }, 0);
 
   const handleViewDetails = (sale) => {
     setSelectedSale(sale);
-    setShowDetailModal(true);
+  };
+
+  const getShopForSale = (sale) => {
+    return shops.find((s) => s.id === sale.shop_id) || null;
   };
 
   return (
     <Layout>
       <SalesHeader
+        totalSales={sales.length}
         todaySales={todaySalesData.length}
         todayRevenue={todayRevenue}
       />
 
       <SalesFilters
         searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
+        onSearchChange={setSearchTerm}
         dateFrom={dateFrom}
-        setDateFrom={setDateFrom}
+        onDateFromChange={setDateFrom}
         dateTo={dateTo}
-        setDateTo={setDateTo}
+        onDateToChange={setDateTo}
         selectedShop={selectedShop}
-        setSelectedShop={setSelectedShop}
+        onShopChange={setSelectedShop}
         paymentMethod={paymentMethod}
-        setPaymentMethod={setPaymentMethod}
+        onPaymentMethodChange={setPaymentMethod}
         shops={shops}
       />
 
@@ -119,12 +117,9 @@ export const Sales = () => {
 
       {selectedSale && (
         <SalesDetailModal
-          isOpen={showDetailModal}
-          onClose={() => setShowDetailModal(false)}
           sale={selectedSale}
-          shopName={
-            shops.find((s) => s.id === selectedSale.shop_id)?.name || "Unknown"
-          }
+          shop={getShopForSale(selectedSale)}
+          onClose={() => setSelectedSale(null)}
         />
       )}
     </Layout>
