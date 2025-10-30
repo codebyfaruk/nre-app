@@ -45,10 +45,6 @@ export const Dashboard = () => {
       );
       setProducts(productsRes.data || []);
       setLowStockProducts(lowStockRes.data || []);
-
-      console.log("✅ Today's Sales:", salesRes.data);
-      console.log("✅ Products:", productsRes.data);
-      console.log("✅ Low Stock:", lowStockRes.data);
     } catch (error) {
       console.error("❌ Error loading dashboard:", error);
     } finally {

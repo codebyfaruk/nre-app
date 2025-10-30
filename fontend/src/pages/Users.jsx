@@ -32,9 +32,6 @@ export const Users = () => {
         apiService.getRoles(),
       ]);
 
-      console.log("✅ Users loaded:", usersRes.data);
-      console.log("✅ Roles loaded:", rolesRes.data);
-
       setUsers(usersRes.data);
       setRoles(rolesRes.data);
     } catch (error) {
@@ -90,7 +87,6 @@ export const Users = () => {
   };
 
   const handleEditUser = (user) => {
-    console.log("📝 Editing user:", user);
     setEditingUser(user);
     setShowModal(true);
   };
@@ -114,8 +110,6 @@ export const Users = () => {
 
   const handleSaveUser = async (userData) => {
     try {
-      console.log("💾 Saving user data:", userData);
-
       if (editingUser) {
         // Update existing user
         await apiService.updateUser(editingUser.id, userData);

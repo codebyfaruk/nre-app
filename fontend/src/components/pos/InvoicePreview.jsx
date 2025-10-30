@@ -25,8 +25,6 @@ export const InvoicePreview = ({ invoice, onClose }) => {
   const total = getNumber(invoice.totalAmount, invoice.total_amount);
   const change = getNumber(invoice.change, 0);
 
-  console.log("Invoice data:", { subtotal, tax, total, invoice }); // Debug
-
   return (
     <>
       {/* Screen overlay */}

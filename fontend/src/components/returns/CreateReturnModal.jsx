@@ -78,8 +78,6 @@ export const CreateReturnModal = ({ sale, onClose, onSubmit }) => {
         })),
       };
 
-      console.log("✅ Submitting return payload:", returnData);
-
       await onSubmit(returnData);
       setValidationError("");
     } catch (error) {

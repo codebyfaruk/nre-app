@@ -132,8 +132,6 @@ export const POS = () => {
         })),
       };
 
-      console.log("💰 Sending sale data:", JSON.stringify(saleData, null, 2));
-
       const response = await apiService.createSale(saleData);
 
       // Create invoice object

@@ -81,8 +81,6 @@ apiClient.interceptors.response.use(
           throw new Error("No refresh token found");
         }
 
-        console.log("🔄 Refreshing access token...");
-
         // ✅ Call refresh endpoint
         const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
           refresh_token: refreshToken,
@@ -105,8 +103,6 @@ apiClient.interceptors.response.use(
         // ✅ Process queued requests with new token
         processQueue(null, newAccessToken);
         isRefreshing = false;
-
-        console.log("✅ Token refreshed successfully!");
 
         // ✅ Retry original request
         return apiClient(originalRequest);
@@ -158,7 +154,6 @@ export const httpService = {
         username,
         password,
       });
-      console.log("✅ Login successful");
       return { success: true, data: response.data };
     } catch (error) {
       console.error("❌ Login failed:", error.response?.data);
@@ -171,7 +166,6 @@ export const httpService = {
       const response = await apiClient.post("/auth/refresh", {
         refresh_token: refreshToken,
       });
-      console.log("✅ Token refresh successful");
       return { success: true, data: response.data };
     } catch (error) {
       console.error("❌ Token refresh failed:", error.response?.data);
@@ -193,7 +187,6 @@ export const httpService = {
     try {
       localStorage.removeItem("user");
       localStorage.removeItem("isAuthenticated");
-      console.log("✅ Logout successful");
       return { success: true };
     } catch (error) {
       console.error("❌ Logout failed:", error);

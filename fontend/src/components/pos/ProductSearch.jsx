@@ -42,10 +42,6 @@ export const ProductSearch = ({ products, inventory, onAddToCart }) => {
       ? stock.quantity - (stock.reserved_quantity || 0)
       : 0;
 
-    console.log("Product:", product.name);
-    console.log("Stock found:", stock);
-    console.log("Available quantity:", availableQty);
-
     if (availableQty <= 0) {
       alert(`"${product.name}" is out of stock!`);
       return;
