@@ -1,3 +1,5 @@
+# src/shop/schemas/inventory.py - UPDATED
+
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional

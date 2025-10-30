@@ -9,6 +9,7 @@ export const ShopModal = ({ shop, onClose, onSave }) => {
       city: "",
       state: "",
       pincode: "",
+      country: "India",
       phone: "",
       email: "",
       isActive: true,
@@ -37,6 +38,10 @@ export const ShopModal = ({ shop, onClose, onSave }) => {
 
     if (!formData.city) {
       newErrors.city = "City is required";
+    }
+
+    if (!formData.state) {
+      newErrors.state = "State is required";
     }
 
     if (!formData.state) {
@@ -214,6 +219,30 @@ export const ShopModal = ({ shop, onClose, onSave }) => {
                   )}
                 </div>
 
+                {/* Country */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Country <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="country"
+                    value={formData.country}
+                    onChange={(e) => handleChange("country", e.target.value)}
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border-2 rounded-lg outline-none transition text-sm sm:text-base  ${
+                      errors.country
+                        ? "border-red-300 focus:border-red-500"
+                        : "border-gray-200 focus:border-gray-900"
+                    }`}
+                    placeholder="Enter country"
+                  />
+                  {errors.country && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.country}
+                    </p>
+                  )}
+                </div>
+
                 {/* Pincode */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -258,27 +287,26 @@ export const ShopModal = ({ shop, onClose, onSave }) => {
                     <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
                   )}
                 </div>
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 border-2 rounded-lg outline-none transition text-sm sm:text-base ${
-                    errors.email
-                      ? "border-red-300 focus:border-red-500"
-                      : "border-gray-200 focus:border-gray-900"
-                  }`}
-                  placeholder="e.g., mainstore@electroshop.com"
-                />
-                {errors.email && (
-                  <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-                )}
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleChange("email", e.target.value)}
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border-2 rounded-lg outline-none transition text-sm sm:text-base ${
+                      errors.email
+                        ? "border-red-300 focus:border-red-500"
+                        : "border-gray-200 focus:border-gray-900"
+                    }`}
+                    placeholder="e.g., mainstore@electroshop.com"
+                  />
+                  {errors.email && (
+                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                  )}
+                </div>
               </div>
 
               {/* Active Status */}

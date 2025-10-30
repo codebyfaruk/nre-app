@@ -1,4 +1,4 @@
-// src/pages/Sales.jsx - COMPLETE
+// src/pages/Sales.jsx - CORRECT VERSION WITH FIXED HANDLERS
 import { useState, useEffect } from "react";
 import { Layout } from "../components/layout/Layout";
 import {
@@ -20,7 +20,6 @@ export const Sales = () => {
   const [selectedShop, setSelectedShop] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedSale, setSelectedSale] = useState(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -43,25 +42,22 @@ export const Sales = () => {
     }
   };
 
-  // Filter sales
+  // ✅ Filter with snake_case field names
   const filteredSales = sales.filter((sale) => {
-    // Search filter
     const matchesSearch =
-      sale.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.customerPhone?.includes(searchTerm);
+      sale.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sale.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sale.customer_phone?.includes(searchTerm);
 
-    // Date filters
-    const saleDate = new Date(sale.saleDate).toISOString().split("T")[0];
+    const saleDate = new Date(sale.sale_date).toISOString().split("T")[0];
     const matchesDateFrom = !dateFrom || saleDate >= dateFrom;
     const matchesDateTo = !dateTo || saleDate <= dateTo;
 
-    // Shop filter
-    const matchesShop = !selectedShop || sale.shopId === parseInt(selectedShop);
+    const matchesShop =
+      !selectedShop || sale.shop_id === parseInt(selectedShop);
 
-    // Payment method filter
     const matchesPayment =
-      !paymentMethod || sale.paymentMethod === paymentMethod;
+      !paymentMethod || sale.payment_method === paymentMethod;
 
     return (
       matchesSearch &&
@@ -72,33 +68,30 @@ export const Sales = () => {
     );
   });
 
-  // Calculate stats
-  const totalSales = sales.length;
+  // ✅ Calculate today's data
   const today = new Date().toISOString().split("T")[0];
   const todaySalesData = sales.filter(
-    (sale) => new Date(sale.saleDate).toISOString().split("T")[0] === today
+    (sale) => new Date(sale.sale_date).toISOString().split("T")[0] === today
   );
-  const todaySales = todaySalesData.length;
-  const todayRevenue = todaySalesData.reduce(
-    (sum, sale) => sum + sale.totalAmount,
-    0
-  );
+
+  const todayRevenue = todaySalesData.reduce((sum, sale) => {
+    const amount = parseFloat(sale.total_amount);
+    return sum + (isNaN(amount) ? 0 : amount);
+  }, 0);
 
   const handleViewDetails = (sale) => {
     setSelectedSale(sale);
-    setShowDetailModal(true);
   };
 
-  const handleCloseModal = () => {
-    setShowDetailModal(false);
-    setSelectedSale(null);
+  const getShopForSale = (sale) => {
+    return shops.find((s) => s.id === sale.shop_id) || null;
   };
 
   return (
-    <Layout title="Sales">
+    <Layout>
       <SalesHeader
-        totalSales={totalSales}
-        todaySales={todaySales}
+        totalSales={sales.length}
+        todaySales={todaySalesData.length}
         todayRevenue={todayRevenue}
       />
 
@@ -106,8 +99,8 @@ export const Sales = () => {
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         dateFrom={dateFrom}
-        dateTo={dateTo}
         onDateFromChange={setDateFrom}
+        dateTo={dateTo}
         onDateToChange={setDateTo}
         selectedShop={selectedShop}
         onShopChange={setSelectedShop}
@@ -122,11 +115,11 @@ export const Sales = () => {
         loading={loading}
       />
 
-      {showDetailModal && selectedSale && (
+      {selectedSale && (
         <SalesDetailModal
           sale={selectedSale}
-          shop={shops.find((s) => s.id === selectedSale.shopId)}
-          onClose={handleCloseModal}
+          shop={getShopForSale(selectedSale)}
+          onClose={() => setSelectedSale(null)}
         />
       )}
     </Layout>

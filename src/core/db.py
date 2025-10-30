@@ -12,7 +12,7 @@ Base = declarative_base()
 # -------------------------
 async_engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,
-    echo=True,
+    echo=False,
     future=True
 )
 
@@ -35,7 +35,7 @@ sync_url = urlunparse(parsed._replace(scheme="postgresql+psycopg2"))
 
 sync_engine = create_engine(
     sync_url,
-    echo=True,
+    echo=False,
     future=True
 )
 

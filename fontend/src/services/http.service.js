@@ -1,8 +1,8 @@
-// src/services/http.service.js - MATCHED TO YOUR BACKEND ROUTES
+// src/services/http.service.js - PRODUCTION READY WITH AUTO TOKEN REFRESH
 
 import axios from "axios";
 
-const API_BASE_URL = "http://0.0.0.0:8000/api";
+const API_BASE_URL = "http://localhost:8000/api";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -12,20 +12,30 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
-// Request interceptor
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// ✅ Request interceptor - Add token to every request
 apiClient.interceptors.request.use(
   (config) => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const token = user.access_token || user.token;
+    const user = JSON.parse(localStorage.getItem("user"));
+    const token = user?.access_token || user?.token;
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    console.log(
-      `🌐 API Request: ${config.method?.toUpperCase()} ${config.url}`
-    );
-    console.log(`📤 Request Data:`, config.data);
     return config;
   },
   (error) => {
@@ -34,54 +44,159 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// ✅ Response interceptor - Handle 401 & auto-refresh
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
-    console.log(`📥 Response Data:`, response.data);
     return response;
   },
   async (error) => {
+    const originalRequest = error.config;
+
+    // ✅ Handle 401 Unauthorized (Token Expired)
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      console.warn("⚠️ Access token expired! Attempting to refresh...");
+
+      if (isRefreshing) {
+        // ✅ Queue requests while token refresh is in progress
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const user = JSON.parse(localStorage.getItem("user"));
+        const refreshToken = user?.refresh_token;
+
+        if (!refreshToken) {
+          throw new Error("No refresh token found");
+        }
+
+        // ✅ Call refresh endpoint
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+          refresh_token: refreshToken,
+        });
+
+        const newAccessToken = response.data.access_token;
+        const newRefreshToken = response.data.refresh_token || refreshToken;
+
+        // ✅ Update localStorage with new tokens
+        user.access_token = newAccessToken;
+        user.refresh_token = newRefreshToken;
+        localStorage.setItem("user", JSON.stringify(user));
+
+        // ✅ Update axios default header
+        apiClient.defaults.headers.common[
+          "Authorization"
+        ] = `Bearer ${newAccessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+        // ✅ Process queued requests with new token
+        processQueue(null, newAccessToken);
+        isRefreshing = false;
+
+        // ✅ Retry original request
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        console.error("❌ Token refresh failed:", refreshError.message);
+
+        // ✅ Refresh failed → clear storage and redirect to login
+        processQueue(refreshError, null);
+        isRefreshing = false;
+
+        localStorage.removeItem("user");
+        localStorage.removeItem("isAuthenticated");
+        window.location.href = "/login";
+
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // ✅ Handle 422 Validation Error
+    if (error.response?.status === 422) {
+      console.error("❌ Validation Error (422):", error.response.data);
+    }
+
+    // ✅ Handle 403 Forbidden
+    if (error.response?.status === 403) {
+      console.error("❌ Access Forbidden (403)");
+    }
+
+    // ✅ Handle 500 Server Error
+    if (error.response?.status === 500) {
+      console.error("❌ Server Error (500)");
+    }
+
+    // ✅ Log all API errors
     console.error(
-      "❌ API Error:",
-      error.response?.status,
-      error.response?.data
+      `❌ API Error [${error.response?.status}]:`,
+      error.response?.data || error.message
     );
+
     return Promise.reject(error);
   }
 );
 
 export const httpService = {
-  // ============================================
-  // 🔐 AUTH ENDPOINTS
-  // ============================================
-
+  // ==================== AUTH ENDPOINTS ====================
   login: async (username, password) => {
-    const response = await apiClient.post("/auth/login", {
-      username,
-      password,
-    });
-    return { success: true, data: response.data };
+    try {
+      const response = await apiClient.post("/auth/login", {
+        username,
+        password,
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error("❌ Login failed:", error.response?.data);
+      return { success: false, error: error.response?.data };
+    }
   },
 
   refreshToken: async (refreshToken) => {
-    const response = await apiClient.post("/auth/refresh", {
-      refresh_token: refreshToken,
-    });
-    return { success: true, data: response.data };
+    try {
+      const response = await apiClient.post("/auth/refresh", {
+        refresh_token: refreshToken,
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error("❌ Token refresh failed:", error.response?.data);
+      return { success: false, error: error.response?.data };
+    }
   },
 
   getMe: async () => {
-    const response = await apiClient.get("/auth/me");
-    return { success: true, data: response.data };
+    try {
+      const response = await apiClient.get("/auth/me");
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error("❌ GetMe failed:", error.response?.data);
+      return { success: false, error: error.response?.data };
+    }
   },
 
-  // ============================================
-  // 👥 USERS ENDPOINTS
-  // ============================================
+  logout: async () => {
+    try {
+      localStorage.removeItem("user");
+      localStorage.removeItem("isAuthenticated");
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Logout failed:", error);
+      return { success: false, error };
+    }
+  },
 
+  // ==================== USERS ENDPOINTS ====================
   getUsers: async () => {
-    const response = await apiClient.get("/users/");
+    const response = await apiClient.get("/users");
     return { success: true, data: response.data };
   },
 
@@ -91,7 +206,6 @@ export const httpService = {
   },
 
   createUser: async (userData) => {
-    // Note: You might need POST /api/auth/register instead
     const response = await apiClient.post("/auth/register", userData);
     return { success: true, data: response.data };
   },
@@ -106,9 +220,8 @@ export const httpService = {
     return { success: true };
   },
 
-  // ✅ FIXED: Correct endpoint for roles
   getRoles: async () => {
-    const response = await apiClient.get("/users/roles/");
+    const response = await apiClient.get("/users/roles");
     return { success: true, data: response.data };
   },
 
@@ -127,12 +240,9 @@ export const httpService = {
     return { success: true };
   },
 
-  // ============================================
-  // 🏪 SHOPS ENDPOINTS
-  // ============================================
-
+  // ==================== SHOPS ENDPOINTS ====================
   getShops: async () => {
-    const response = await apiClient.get("/shops/");
+    const response = await apiClient.get("/shops");
     return { success: true, data: response.data };
   },
 
@@ -142,7 +252,7 @@ export const httpService = {
   },
 
   createShop: async (shopData) => {
-    const response = await apiClient.post("/shops/", shopData);
+    const response = await apiClient.post("/shops", shopData);
     return { success: true, data: response.data };
   },
 
@@ -169,12 +279,9 @@ export const httpService = {
     return { success: true };
   },
 
-  // ============================================
-  // 📦 PRODUCTS ENDPOINTS
-  // ============================================
-
+  // ==================== PRODUCTS ENDPOINTS ====================
   getProducts: async () => {
-    const response = await apiClient.get("/products/");
+    const response = await apiClient.get("/products");
     return { success: true, data: response.data };
   },
 
@@ -184,7 +291,7 @@ export const httpService = {
   },
 
   createProduct: async (productData) => {
-    const response = await apiClient.post("/products/", productData);
+    const response = await apiClient.post("/products", productData);
     return { success: true, data: response.data };
   },
 
@@ -198,7 +305,18 @@ export const httpService = {
     return { success: true };
   },
 
-  // Categories
+  uploadProductImage: async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await apiClient.post("/products/upload-image", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return { success: true, data: response.data };
+  },
+
   getCategories: async () => {
     const response = await apiClient.get("/products/categories");
     return { success: true, data: response.data };
@@ -222,12 +340,9 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ============================================
-  // 📊 INVENTORY ENDPOINTS
-  // ============================================
-
+  // ==================== INVENTORY ENDPOINTS ====================
   getInventory: async (shopId = null) => {
-    const url = shopId ? `/inventory/shop/${shopId}` : "/inventory/";
+    const url = shopId ? `/inventory/shop/${shopId}` : "/inventory";
     const response = await apiClient.get(url);
     return { success: true, data: response.data };
   },
@@ -243,7 +358,7 @@ export const httpService = {
   },
 
   createInventory: async (inventoryData) => {
-    const response = await apiClient.post("/inventory/", inventoryData);
+    const response = await apiClient.post("/inventory", inventoryData);
     return { success: true, data: response.data };
   },
 
@@ -274,18 +389,16 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ❌ REMOVED - Your backend doesn't have this endpoint
-  // getLowStock: async () => {
-  //   const response = await apiClient.get('/inventory/low-stock');
-  //   return { success: true, data: response.data };
-  // },
+  getLowStock: async (threshold = 5) => {
+    const response = await apiClient.get(
+      `/inventory/low-stock?threshold=${threshold}`
+    );
+    return { success: true, data: response.data };
+  },
 
-  // ============================================
-  // 💰 SALES ENDPOINTS
-  // ============================================
-
-  getSales: async (params = {}) => {
-    const response = await apiClient.get("/sales/", { params });
+  // ==================== SALES ENDPOINTS ====================
+  getSales: async (params) => {
+    const response = await apiClient.get("/sales", { params });
     return { success: true, data: response.data };
   },
 
@@ -295,7 +408,7 @@ export const httpService = {
   },
 
   createSale: async (saleData) => {
-    const response = await apiClient.post("/sales/", saleData);
+    const response = await apiClient.post("/sales", saleData);
     return { success: true, data: response.data };
   },
 
@@ -304,16 +417,12 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ❌ REMOVED - Your backend doesn't have this endpoint
-  // getTodaySales: async () => {
-  //   const response = await apiClient.get('/sales/today');
-  //   return { success: true, data: response.data };
-  // },
+  getTodaySales: async () => {
+    const response = await apiClient.get("/sales/today");
+    return { success: true, data: response.data };
+  },
 
-  // ============================================
-  // ↩️ RETURNS ENDPOINTS
-  // ============================================
-
+  // ==================== RETURNS ENDPOINTS ====================
   getReturns: async (status = null) => {
     const params = status ? { status } : {};
     const response = await apiClient.get("/sales/returns/", { params });
@@ -333,10 +442,7 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // ============================================
-  // 👤 CUSTOMERS ENDPOINTS
-  // ============================================
-
+  // ==================== CUSTOMERS ENDPOINTS ====================
   createCustomerProfile: async (profileData) => {
     const response = await apiClient.post("/customers/profiles", profileData);
     return { success: true, data: response.data };
@@ -360,7 +466,6 @@ export const httpService = {
     return { success: true, data: response.data };
   },
 
-  // Addresses
   createAddress: async (addressData) => {
     const response = await apiClient.post("/customers/addresses", addressData);
     return { success: true, data: response.data };
@@ -389,17 +494,12 @@ export const httpService = {
     return { success: true };
   },
 
-  // ============================================
-  // 📊 DASHBOARD/STATS (Custom implementations)
-  // ============================================
-
+  // ==================== DASHBOARD/STATS ====================
   getDashboardStats: async () => {
-    // Since you don't have a /dashboard/stats endpoint,
-    // we'll fetch the needed data separately and combine it
     try {
       const [sales, products] = await Promise.all([
-        apiClient.get("/sales/"),
-        apiClient.get("/products/"),
+        apiClient.get("/sales"),
+        apiClient.get("/products"),
       ]);
 
       return {
@@ -412,7 +512,12 @@ export const httpService = {
         },
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error("❌ Dashboard stats error:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
     }
   },
 };
+export default httpService;

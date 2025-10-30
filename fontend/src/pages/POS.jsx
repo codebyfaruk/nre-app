@@ -67,7 +67,7 @@ export const POS = () => {
     const existingItem = cartItems.find(
       (item) => item.product.id === product.id
     );
-    const maxStock = stock.quantity - stock.reservedQuantity;
+    const maxStock = stock.quantity - (stock.reserved_quantity || 0);
 
     if (existingItem) {
       if (existingItem.quantity >= maxStock) {
@@ -116,27 +116,19 @@ export const POS = () => {
 
   const handleCompleteSale = async (paymentDetails) => {
     try {
+      // ✅ FIX: Use snake_case and proper number formatting
       const saleData = {
-        shopId: parseInt(selectedShop),
-        saleDate: new Date().toISOString(),
-        paymentMethod: paymentDetails.paymentMethod,
-        paymentReference:
-          paymentDetails.paymentMethod !== "cash" ? "REF" + Date.now() : null,
-        subtotal: checkoutSummary.subtotal,
-        taxAmount: checkoutSummary.taxAmount,
-        totalAmount: checkoutSummary.total,
-        status: "completed",
-        customerName: paymentDetails.customerName || null,
-        customerPhone: paymentDetails.customerPhone || null,
+        shop_id: parseInt(selectedShop), // ✅ snake_case
+        customer_id: null, // ✅ Required field
+        payment_method: paymentDetails.paymentMethod, // ✅ snake_case
+        payment_reference:
+          paymentDetails.paymentMethod !== "cash" ? `REF-${Date.now()}` : null,
         notes: paymentDetails.notes || null,
         items: cartItems.map((item) => ({
-          productId: item.product.id,
-          productName: item.product.name,
-          productSku: item.product.sku,
+          product_id: item.product.id, // ✅ snake_case
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          unit_price: parseFloat(item.unitPrice), // ✅ snake_case + number
           discount: 0,
-          totalPrice: item.totalPrice,
         })),
       };
 
@@ -158,14 +150,22 @@ export const POS = () => {
 
       // Clear cart
       setCartItems([]);
-
-      showSuccess("Sale completed successfully!");
+      showSuccess("✅ Sale completed successfully!");
 
       // Reload inventory
-      loadInventory(selectedShop);
+      await loadInventory(selectedShop);
     } catch (error) {
-      console.error("Error completing sale:", error);
-      showError("Failed to complete sale");
+      console.error("❌ Error completing sale:", error);
+      console.error("❌ Error response:", error.response?.data);
+
+      // Show detailed error message
+      const errorMsg = error.response?.data?.detail
+        ? Array.isArray(error.response.data.detail)
+          ? error.response.data.detail.map((e) => e.msg).join(", ")
+          : error.response.data.detail
+        : "Failed to complete sale";
+
+      showError(errorMsg);
     }
   };
 

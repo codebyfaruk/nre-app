@@ -96,11 +96,11 @@ export const SalesTable = ({ sales, onViewDetails, loading }) => {
                   <td className="px-6 py-4">
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
                       {getPaymentIcon(sale.paymentMethod)}{" "}
-                      {sale.paymentMethod.toUpperCase()}
+                      {sale.payment_method.toUpperCase()}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-gray-900">
-                    {formatCurrency(sale.totalAmount)}
+                    {formatCurrency(sale.total_amount)}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <button
@@ -155,7 +155,7 @@ export const SalesTable = ({ sales, onViewDetails, loading }) => {
                 <div className="flex items-center space-x-2">
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
                     {getPaymentIcon(sale.paymentMethod)}{" "}
-                    {sale.paymentMethod.toUpperCase()}
+                    {sale.payment_method.toUpperCase()}
                   </span>
                   <span className="text-xs text-gray-600">
                     {sale.items.length} item(s)

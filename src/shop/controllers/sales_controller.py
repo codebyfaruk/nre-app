@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 from src.shop.models import Sale, SaleItem, Return, Product, Inventory
@@ -12,11 +12,45 @@ from src.shop.schemas import SaleCreate, ReturnCreate, ReturnUpdate
 
 class SalesController:
     """Controller for sales and returns management"""
-    
+
+    # ==================== TODAY'S SALES ====================
+    @staticmethod
+    async def get_todays_sales(db: AsyncSession) -> dict:
+        """
+        Get today's sales with summary statistics
+        Returns:
+            dict: Contains date, total_sales_count, total_amount, and sales list
+        """
+        today = date.today()
+        
+        # ✅ OPTIMIZED: Simple query without relationships
+        query = (
+            select(Sale)
+            .where(func.date(Sale.created_at) == today)
+            .order_by(Sale.created_at.desc())
+        )
+        
+        result = await db.execute(query)
+        todays_sales = result.scalars().all()
+        
+        # Calculate totals
+        total_sales_count = len(todays_sales)
+        total_amount = sum(
+            sale.total_amount for sale in todays_sales
+        ) if todays_sales else Decimal('0.00')
+        
+        return {
+            "date": today,
+            "total_sales_count": total_sales_count,
+            "total_amount": total_amount,
+            "sales": todays_sales
+        }
+
+    # ==================== INVOICE GENERATION ====================
     @staticmethod
     async def generate_invoice_number(db: AsyncSession) -> str:
         """Generate unique invoice number"""
-        # Format: INV-YYYYMMDD-XXXX
+        # Format: INV-YYYYMMDD-XXXXXX
         date_str = datetime.now().strftime("%Y%m%d")
         
         # Get count of sales today
@@ -26,10 +60,10 @@ class SalesController:
             )
         )
         count = result.scalar() or 0
+        invoice_number = f"INV-{date_str}-{(count + 1):06d}"
         
-        invoice_number = f"INV-{date_str}-{(count + 1):04d}"
         return invoice_number
-    
+
     @staticmethod
     async def generate_return_number(db: AsyncSession) -> str:
         """Generate unique return number"""
@@ -42,10 +76,11 @@ class SalesController:
             )
         )
         count = result.scalar() or 0
-        
         return_number = f"RET-{date_str}-{(count + 1):04d}"
+        
         return return_number
-    
+
+    # ==================== CREATE SALE ====================
     @staticmethod
     async def create_sale(
         db: AsyncSession,
@@ -159,10 +194,11 @@ class SalesController:
         )
         
         return result.scalar_one()
-    
+
+    # ==================== GET SALES ====================
     @staticmethod
     async def get_sale(db: AsyncSession, sale_id: int) -> Sale:
-        """Get sale by ID"""
+        """Get single sale by ID with full details"""
         result = await db.execute(
             select(Sale)
             .options(
@@ -173,8 +209,8 @@ class SalesController:
             )
             .where(Sale.id == sale_id)
         )
-        sale = result.scalar_one_or_none()
         
+        sale = result.scalar_one_or_none()
         if not sale:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -182,7 +218,7 @@ class SalesController:
             )
         
         return sale
-    
+
     @staticmethod
     async def get_sales(
         db: AsyncSession,
@@ -203,24 +239,22 @@ class SalesController:
             .order_by(Sale.sale_date.desc())
         )
         
+        # Apply filters
         if shop_id:
             query = query.where(Sale.shop_id == shop_id)
-        
         if customer_id:
             query = query.where(Sale.customer_id == customer_id)
-        
         if status:
             query = query.where(Sale.status == status)
-        
         if start_date:
             query = query.where(Sale.sale_date >= start_date)
-        
         if end_date:
             query = query.where(Sale.sale_date <= end_date)
         
         result = await db.execute(query)
         return result.scalars().all()
-    
+
+    # ==================== CANCEL SALE ====================
     @staticmethod
     async def cancel_sale(
         db: AsyncSession,
@@ -247,7 +281,6 @@ class SalesController:
                 )
             )
             inventory = inventory_result.scalar_one_or_none()
-            
             if inventory:
                 inventory.quantity += item.quantity
         
@@ -260,7 +293,8 @@ class SalesController:
         await db.refresh(sale)
         
         return sale
-    
+
+    # ==================== RETURNS ====================
     @staticmethod
     async def create_return(
         db: AsyncSession,
@@ -313,7 +347,7 @@ class SalesController:
         await db.refresh(product_return)
         
         return product_return
-    
+
     @staticmethod
     async def process_return(
         db: AsyncSession,
@@ -357,7 +391,6 @@ class SalesController:
                 )
             )
             inventory = inventory_result.scalar_one_or_none()
-            
             if inventory:
                 inventory.quantity += product_return.quantity
         
@@ -365,7 +398,7 @@ class SalesController:
         await db.refresh(product_return)
         
         return product_return
-    
+
     @staticmethod
     async def get_returns(
         db: AsyncSession,
@@ -374,7 +407,12 @@ class SalesController:
         status: Optional[str] = None
     ) -> List[Return]:
         """Get list of returns"""
-        query = select(Return).offset(skip).limit(limit).order_by(Return.return_date.desc())
+        query = (
+            select(Return)
+            .offset(skip)
+            .limit(limit)
+            .order_by(Return.return_date.desc())
+        )
         
         if status:
             query = query.where(Return.status == status)

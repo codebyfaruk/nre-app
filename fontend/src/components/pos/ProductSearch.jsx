@@ -1,4 +1,5 @@
-// src/components/pos/ProductSearch.jsx
+// src/components/pos/ProductSearch.jsx - FIXED INVENTORY LOOKUP
+
 import { useState, useEffect, useRef } from "react";
 import { formatCurrency } from "../../utils/helpers";
 
@@ -14,6 +15,7 @@ export const ProductSearch = ({ products, inventory, onAddToCart }) => {
         setShowResults(false);
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -32,11 +34,16 @@ export const ProductSearch = ({ products, inventory, onAddToCart }) => {
     .slice(0, 10); // Limit to 10 results
 
   const handleSelectProduct = (product) => {
-    const stock = inventory.find((inv) => inv.productId === product.id);
-    const availableQty = stock ? stock.quantity - stock.reservedQuantity : 0;
+    // ✅ FIX: Use product_id (with underscore) not productId
+    const stock = inventory.find((inv) => inv.product_id === product.id);
+
+    // ✅ Calculate available quantity
+    const availableQty = stock
+      ? stock.quantity - (stock.reserved_quantity || 0)
+      : 0;
 
     if (availableQty <= 0) {
-      alert("Product is out of stock!");
+      alert(`"${product.name}" is out of stock!`);
       return;
     }
 
@@ -46,12 +53,8 @@ export const ProductSearch = ({ products, inventory, onAddToCart }) => {
   };
 
   return (
-    <div ref={searchRef} className="relative">
-      {/* Search Input */}
+    <div className="relative" ref={searchRef}>
       <div className="relative">
-        <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl">
-          🔍
-        </span>
         <input
           type="text"
           value={searchTerm}
@@ -60,76 +63,91 @@ export const ProductSearch = ({ products, inventory, onAddToCart }) => {
             setShowResults(true);
           }}
           onFocus={() => setShowResults(true)}
-          placeholder="Search products by name, SKU, or brand..."
-          className="w-full pl-12 pr-4 py-3 sm:py-4 border-2 border-gray-200 rounded-xl focus:border-gray-900 focus:ring-2 focus:ring-gray-200 outline-none transition text-sm sm:text-base"
+          placeholder="Search by name, SKU, or brand..."
+          className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
+        <svg
+          className="absolute left-4 top-3.5 h-5 w-5 text-gray-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
       </div>
 
       {/* Search Results Dropdown */}
-      {showResults && searchTerm && filteredProducts.length > 0 && (
-        <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl max-h-96 overflow-y-auto">
-          {filteredProducts.map((product) => {
-            const stock = inventory.find((inv) => inv.productId === product.id);
-            const availableQty = stock
-              ? stock.quantity - stock.reservedQuantity
-              : 0;
-
-            return (
-              <div
-                key={product.id}
-                onClick={() => handleSelectProduct(product)}
-                className={`p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition ${
-                  availableQty <= 0 ? "opacity-50" : ""
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-gray-900 truncate">
-                      {product.name}
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {product.brand} • {product.sku}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                        {product.categoryName}
-                      </span>
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${
-                          availableQty > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        Stock: {availableQty}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="ml-4 text-right">
-                    <div className="font-bold text-gray-900">
-                      {formatCurrency(product.discountPrice || product.price)}
-                    </div>
-                    {product.discountPrice && (
-                      <div className="text-xs text-gray-500 line-through">
-                        {formatCurrency(product.price)}
-                      </div>
-                    )}
-                  </div>
-                </div>
+      {showResults && searchTerm && (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+          {filteredProducts.length > 0 ? (
+            <>
+              <div className="px-4 py-2 bg-gray-50 border-b text-sm text-gray-600 font-medium">
+                {filteredProducts.length} product
+                {filteredProducts.length > 1 ? "s" : ""} found
               </div>
-            );
-          })}
-        </div>
-      )}
+              {filteredProducts.map((product) => {
+                // ✅ FIX: Use product_id (with underscore)
+                const stock = inventory.find(
+                  (inv) => inv.product_id === product.id
+                );
+                const availableQty = stock
+                  ? stock.quantity - (stock.reserved_quantity || 0)
+                  : 0;
 
-      {/* No Results */}
-      {showResults && searchTerm && filteredProducts.length === 0 && (
-        <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg p-6 text-center">
-          <span className="text-4xl block mb-2">🔍</span>
-          <p className="text-gray-600">No products found</p>
-          <p className="text-sm text-gray-500 mt-1">
-            Try a different search term
-          </p>
+                return (
+                  <div
+                    key={product.id}
+                    onClick={() => handleSelectProduct(product)}
+                    className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 transition"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          {product.name}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {product.brand} • {product.sku}
+                        </div>
+                      </div>
+                      <div className="ml-4 text-right">
+                        <div className="font-semibold text-gray-900">
+                          {formatCurrency(
+                            product.discount_price || product.price
+                          )}
+                        </div>
+                        <div
+                          className={`text-sm font-medium mt-1 ${
+                            availableQty === 0
+                              ? "text-red-600"
+                              : availableQty < 10
+                              ? "text-orange-600"
+                              : "text-green-600"
+                          }`}
+                        >
+                          {availableQty === 0
+                            ? "Out of Stock"
+                            : availableQty < 10
+                            ? `Only ${availableQty} left`
+                            : `${availableQty} in stock`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <div className="px-4 py-8 text-center text-gray-500">
+              <div className="text-4xl mb-2">🔍</div>
+              <div className="font-medium">No products found</div>
+              <div className="text-sm mt-1">Try a different search term</div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-// src/pages/Users.jsx - COMPLETE
+// src/pages/Users.jsx - COMPLETE FIXED
 import { useState, useEffect } from "react";
 import { Layout } from "../components/layout/Layout";
 import {
@@ -31,6 +31,7 @@ export const Users = () => {
         apiService.getUsers(),
         apiService.getRoles(),
       ]);
+
       setUsers(usersRes.data);
       setRoles(rolesRes.data);
     } catch (error) {
@@ -41,15 +42,43 @@ export const Users = () => {
     }
   };
 
-  // Filter users
+  // ✅ FIXED: Filter by search, role, and status
   const filteredUsers = users.filter((user) => {
-    if (!searchTerm) return true;
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const username = (user.username || "").toLowerCase();
+      const email = (user.email || "").toLowerCase();
+      if (!username.includes(search) && !email.includes(search)) {
+        return false;
+      }
+    }
 
-    const search = searchTerm.toLowerCase();
-    const username = (user.username || "").toLowerCase();
-    const email = (user.email || "").toLowerCase();
+    // Role filter
+    if (selectedRole && selectedRole !== "") {
+      const userRoleNames =
+        user.roles?.map((r) =>
+          typeof r === "object" && r.role
+            ? r.role.name
+            : typeof r === "object"
+            ? r.name
+            : r
+        ) || [];
 
-    return username.includes(search) || email.includes(search);
+      if (!userRoleNames.includes(selectedRole)) {
+        return false;
+      }
+    }
+
+    // Status filter
+    if (statusFilter === "active" && !user.is_active) {
+      return false;
+    }
+    if (statusFilter === "inactive" && user.is_active) {
+      return false;
+    }
+
+    return true;
   });
 
   const handleAddUser = () => {
@@ -65,7 +94,7 @@ export const Users = () => {
   const handleDeleteUser = async (user) => {
     if (
       window.confirm(
-        `Delete user "${user.fullName}"?\n\nThis action cannot be undone.`
+        `Delete user "${user.username}"?\n\nThis action cannot be undone.`
       )
     ) {
       try {
@@ -74,7 +103,7 @@ export const Users = () => {
         loadData();
       } catch (error) {
         console.error("Error deleting user:", error);
-        showError("Failed to delete user");
+        showError(error.response?.data?.detail || "Failed to delete user");
       }
     }
   };
@@ -82,55 +111,65 @@ export const Users = () => {
   const handleSaveUser = async (userData) => {
     try {
       if (editingUser) {
+        // Update existing user
         await apiService.updateUser(editingUser.id, userData);
         showSuccess("User updated successfully!");
       } else {
+        // Create new user
         await apiService.createUser(userData);
         showSuccess("User created successfully!");
       }
+
       setShowModal(false);
       loadData();
     } catch (error) {
       console.error("Error saving user:", error);
-      showError("Failed to save user");
+      const errorMsg = error.response?.data?.detail || "Failed to save user";
+      showError(errorMsg);
     }
   };
 
-  const activeUsers = users.filter((u) => u.isActive).length;
+  const activeUsers = users.filter((u) => u.is_active).length;
 
   return (
-    <Layout title="Users">
-      <UsersHeader
-        onAddUser={handleAddUser}
-        totalUsers={users.length}
-        activeUsers={activeUsers}
-      />
-
-      <UsersFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        selectedRole={selectedRole}
-        onRoleChange={setSelectedRole}
-        statusFilter={statusFilter}
-        onStatusChange={setStatusFilter}
-        roles={roles}
-      />
-
-      <UsersTable
-        users={filteredUsers}
-        onEdit={handleEditUser}
-        onDelete={handleDeleteUser}
-        loading={loading}
-      />
-
-      {showModal && (
-        <UserModal
-          user={editingUser}
-          roles={roles}
-          onClose={() => setShowModal(false)}
-          onSave={handleSaveUser}
+    <Layout>
+      <div className="p-6">
+        <UsersHeader
+          onAddUser={handleAddUser}
+          totalUsers={users.length}
+          activeUsers={activeUsers}
         />
-      )}
+
+        <UsersFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          selectedRole={selectedRole}
+          onRoleChange={setSelectedRole}
+          statusFilter={statusFilter}
+          onStatusChange={setStatusFilter}
+          roles={roles}
+        />
+
+        {loading ? (
+          <div className="text-center py-8">Loading users...</div>
+        ) : (
+          <UsersTable
+            users={filteredUsers}
+            onEdit={handleEditUser}
+            onDelete={handleDeleteUser}
+          />
+        )}
+
+        {showModal && (
+          <UserModal
+            isOpen={showModal}
+            user={editingUser}
+            roles={roles}
+            onClose={() => setShowModal(false)}
+            onSave={handleSaveUser}
+          />
+        )}
+      </div>
     </Layout>
   );
 };

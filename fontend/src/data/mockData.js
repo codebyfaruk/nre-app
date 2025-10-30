@@ -601,20 +601,11 @@ export const getProductsWithCategory = () => {
 
 // Helper function to get inventory with product details - FIXED
 export const getInventoryWithDetails = (shopId = null) => {
-  console.log("🔍 Getting inventory details for shop:", shopId);
-
   let inventory = [...mockInventory]; // Create a copy
 
   // Filter by shop if provided
   if (shopId) {
     inventory = inventory.filter((inv) => inv.shopId === parseInt(shopId));
-    console.log(
-      "📦 Filtered inventory for shop",
-      shopId,
-      ":",
-      inventory.length,
-      "items"
-    );
   }
 
   // Map with product and shop details
@@ -640,8 +631,6 @@ export const getInventoryWithDetails = (shopId = null) => {
       };
     })
     .filter(Boolean); // Remove null items
-
-  console.log("✅ Detailed inventory:", detailedInventory);
   return detailedInventory;
 };
 

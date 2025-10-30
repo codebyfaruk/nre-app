@@ -1,16 +1,33 @@
-// src/utils/toast.js
+// src/utils/toast.js - COMPLETE
+
 import toast from "react-hot-toast";
 
 export const showSuccess = (message) => {
-  toast.success(message);
+  toast.success(message, {
+    duration: 3000,
+    position: "top-right",
+  });
 };
 
 export const showError = (message) => {
-  toast.error(message);
+  toast.error(message, {
+    duration: 4000,
+    position: "top-right",
+  });
+};
+
+export const showInfo = (message) => {
+  toast(message, {
+    duration: 3000,
+    position: "top-right",
+    icon: "ℹ️",
+  });
 };
 
 export const showLoading = (message) => {
-  return toast.loading(message);
+  return toast.loading(message, {
+    position: "top-right",
+  });
 };
 
 export const dismissToast = (toastId) => {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -11,6 +11,9 @@ from src.shop.schemas import (
     CategoryCreate, CategoryUpdate, CategoryResponse,
     ProductCreate, ProductUpdate, ProductResponse
 )
+
+from fastapi import File, UploadFile
+from src.core.file_upload import save_upload_file
 
 router = APIRouter()
 
@@ -31,16 +34,17 @@ async def create_category(
 
 @router.get("/categories", response_model=List[CategoryResponse], tags=["Categories"])
 async def get_categories(
-    skip: int = 0,
-    limit: int = 100,
-    parent_id: Optional[int] = None,
+    is_active: Optional[bool] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Get list of categories
     """
-    categories = await ProductController.get_categories(db, skip, limit, parent_id)
+    categories = await ProductController.get_categories(
+        db=db,           # ✅ Use keyword arguments
+        is_active=is_active
+    )
     return categories
 
 
@@ -87,8 +91,8 @@ async def create_product(
 
 @router.get("/", response_model=List[ProductResponse])
 async def get_products(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
     category_id: Optional[int] = Query(None, description="Filter by category"),
     search: Optional[str] = Query(None, description="Search by name, SKU, or brand"),
     is_active: Optional[bool] = None,
@@ -102,6 +106,25 @@ async def get_products(
         db, skip, limit, category_id, search, is_active
     )
     return products
+
+@router.post("/upload-image", tags=["Products"])
+async def upload_product_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload product image"""
+    try:
+        file_url = await save_upload_file(file, folder="products")
+        return {
+            "success": True,
+            "file_url": file_url,
+            "message": "Image uploaded successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload image: {str(e)}"
+        )
 
 
 @router.get("/{product_id}", response_model=ProductResponse)

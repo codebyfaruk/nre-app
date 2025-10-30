@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 from src.core.db import get_db
 from src.accounts.permissions import IsManager, IsStaff
@@ -9,7 +9,7 @@ from src.accounts.models import User
 from src.shop.controllers import SalesController
 from src.shop.schemas import (
     SaleCreate, SaleResponse,
-    ReturnCreate, ReturnUpdate, ReturnResponse
+    ReturnCreate, ReturnUpdate, ReturnResponse, TodaysSalesResponse
 )
 
 router = APIRouter()
@@ -37,21 +37,71 @@ async def create_sale(
 async def get_sales(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    shop_id: Optional[int] = Query(None, description="Filter by shop"),
-    customer_id: Optional[int] = Query(None, description="Filter by customer"),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    start_date: Optional[datetime] = Query(None, description="Filter from date"),
-    end_date: Optional[datetime] = Query(None, description="Filter to date"),
+    shop_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get sales with filters"""
+    return await SalesController.get_sales(
+        db=db,                   
+        skip=skip,
+        limit=limit,
+        shop_id=shop_id,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+@router.get("/today", response_model=TodaysSalesResponse)
+async def get_todays_sales(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(IsStaff())
 ):
     """
-    Get list of sales with filters (Staff+)
+    Get today's sales summary with details (Staff+)
     """
-    sales = await SalesController.get_sales(
-        db, skip, limit, shop_id, customer_id, status, start_date, end_date
+    result = await SalesController.get_todays_sales(db)
+    return result
+
+@router.post("/returns", response_model=ReturnResponse, status_code=status.HTTP_201_CREATED, tags=["Returns"])
+async def create_return(
+    return_data: ReturnCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsStaff())
+):
+    """
+    Create a product return request (Staff+)
+    """
+    product_return = await SalesController.create_return(db, return_data)
+    return product_return
+
+
+@router.get("/returns", response_model=List[ReturnResponse], tags=["Returns"])
+async def get_returns(
+    status: Optional[str] = Query(None, description="Filter by status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsStaff())
+):
+    """Get returns with optional status filter"""
+    return await SalesController.get_returns(db=db, status=status)
+
+@router.put("/returns/{return_id}/process", response_model=ReturnResponse, tags=["Returns"])
+async def process_return(
+    return_id: int,
+    return_update: ReturnUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(IsManager())
+):
+    """
+    Process (approve/reject) a return (Manager+)
+    
+    If approved, inventory will be restored automatically.
+    """
+    product_return = await SalesController.process_return(
+        db, return_id, return_update, current_user.id
     )
-    return sales
+    return product_return
+
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)
@@ -79,51 +129,3 @@ async def cancel_sale(
     """
     sale = await SalesController.cancel_sale(db, sale_id, reason)
     return sale
-
-
-# ==================== Returns Routes ====================
-
-@router.post("/returns/", response_model=ReturnResponse, status_code=status.HTTP_201_CREATED, tags=["Returns"])
-async def create_return(
-    return_data: ReturnCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsStaff())
-):
-    """
-    Create a product return request (Staff+)
-    """
-    product_return = await SalesController.create_return(db, return_data)
-    return product_return
-
-
-@router.get("/returns/", response_model=List[ReturnResponse], tags=["Returns"])
-async def get_returns(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsStaff())
-):
-    """
-    Get list of returns (Staff+)
-    """
-    returns = await SalesController.get_returns(db, skip, limit, status)
-    return returns
-
-
-@router.put("/returns/{return_id}/process", response_model=ReturnResponse, tags=["Returns"])
-async def process_return(
-    return_id: int,
-    return_update: ReturnUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(IsManager())
-):
-    """
-    Process (approve/reject) a return (Manager+)
-    
-    If approved, inventory will be restored automatically.
-    """
-    product_return = await SalesController.process_return(
-        db, return_id, return_update, current_user.id
-    )
-    return product_return

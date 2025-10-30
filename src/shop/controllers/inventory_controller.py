@@ -1,127 +1,186 @@
-from typing import List 
+# src/shop/controllers/inventory_controller.py - FIXED
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, or_, and_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from datetime import datetime
 
 from src.shop.models import Inventory, Product, Shop
 from src.shop.schemas import InventoryCreate, InventoryUpdate, StockAdjustment
+from src.core.app_logging import get_app_logger
+
+logger = get_app_logger()
 
 
 class InventoryController:
     """Controller for inventory management operations"""
-    
+
     @staticmethod
     async def create_inventory(
         db: AsyncSession,
         inventory_data: InventoryCreate
     ) -> Inventory:
         """Create inventory record for a product in a shop"""
-        # Check if inventory already exists
-        result = await db.execute(
-            select(Inventory).where(
-                and_(
-                    Inventory.product_id == inventory_data.product_id,
-                    Inventory.shop_id == inventory_data.shop_id
+        try:
+            logger.info(f"Creating inventory: product {inventory_data.product_id}, shop {inventory_data.shop_id}")
+            
+            # Check if inventory already exists
+            result = await db.execute(
+                select(Inventory).where(
+                    and_(
+                        Inventory.product_id == inventory_data.product_id,
+                        Inventory.shop_id == inventory_data.shop_id
+                    )
                 )
             )
-        )
-        if result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inventory already exists for this product in this shop"
+            if result.scalar_one_or_none():
+                logger.warning(f"Inventory already exists for product {inventory_data.product_id} in shop {inventory_data.shop_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Inventory already exists for this product in this shop"
+                )
+
+            # Verify product exists
+            result = await db.execute(
+                select(Product).where(Product.id == inventory_data.product_id)
             )
-        
-        # Verify product exists
-        product_result = await db.execute(
-            select(Product).where(Product.id == inventory_data.product_id)
-        )
-        if not product_result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
+            if not result.scalar_one_or_none():
+                logger.warning(f"Product ID {inventory_data.product_id} not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Product not found"
+                )
+
+            # Verify shop exists
+            result = await db.execute(
+                select(Shop).where(Shop.id == inventory_data.shop_id)
             )
-        
-        # Verify shop exists
-        shop_result = await db.execute(
-            select(Shop).where(Shop.id == inventory_data.shop_id)
-        )
-        if not shop_result.scalar_one_or_none():
+            if not result.scalar_one_or_none():
+                logger.warning(f"Shop ID {inventory_data.shop_id} not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Shop not found"
+                )
+
+            inventory = Inventory(**inventory_data.model_dump())
+            db.add(inventory)
+            await db.commit()
+            await db.refresh(inventory)
+            
+            logger.info(f"Successfully created inventory ID: {inventory.id}")
+            return inventory
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error creating inventory: {str(e)}")
+            await db.rollback()
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Shop not found"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create inventory: {str(e)}"
             )
-        
-        inventory = Inventory(**inventory_data.model_dump())
-        inventory.last_restocked_at = datetime.now()
-        
-        db.add(inventory)
-        await db.commit()
-        await db.refresh(inventory)
-        
-        return inventory
-    
+
     @staticmethod
-    async def get_inventory(
-        db: AsyncSession,
-        inventory_id: int
-    ) -> Inventory:
+    async def get_inventory(db: AsyncSession, inventory_id: int) -> Inventory:
         """Get inventory by ID"""
-        result = await db.execute(
-            select(Inventory)
-            .options(
-                selectinload(Inventory.product),
-                selectinload(Inventory.shop)
+        try:
+            logger.info(f"Fetching inventory ID: {inventory_id}")
+            
+            result = await db.execute(
+                select(Inventory)
+                .options(
+                    selectinload(Inventory.product),
+                    selectinload(Inventory.shop)
+                )
+                .where(Inventory.id == inventory_id)
             )
-            .where(Inventory.id == inventory_id)
-        )
-        inventory = result.scalar_one_or_none()
-        
-        if not inventory:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Inventory not found"
-            )
-        
-        return inventory
-    
+            inventory = result.scalar_one_or_none()
+            
+            if not inventory:
+                logger.warning(f"Inventory ID {inventory_id} not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Inventory not found"
+                )
+            
+            logger.info(f"Retrieved inventory ID: {inventory_id}")
+            return inventory
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching inventory ID {inventory_id}: {str(e)}")
+            raise
+
     @staticmethod
-    async def get_inventory_by_shop(
+    async def get_all_inventory(db: AsyncSession) -> List[Inventory]:
+        """Get all inventory records"""
+        try:
+            logger.info("Fetching all inventory records")
+            
+            result = await db.execute(
+                select(Inventory)
+                .options(
+                    selectinload(Inventory.product),
+                    selectinload(Inventory.shop)
+                )
+            )
+            inventory = result.scalars().all()
+            
+            logger.info(f"Retrieved {len(inventory)} inventory records")
+            return inventory
+            
+        except Exception as e:
+            logger.error(f"Error fetching all inventory: {str(e)}")
+            raise
+
+    @staticmethod
+    async def get_shop_inventory(
         db: AsyncSession,
-        shop_id: int,
-        skip: int = 0,
-        limit: int = 100,
-        low_stock_only: bool = False
+        shop_id: int
     ) -> List[Inventory]:
-        """Get inventory for a specific shop"""
-        query = (
-            select(Inventory)
-            .options(selectinload(Inventory.product))
-            .where(Inventory.shop_id == shop_id)
-            .offset(skip)
-            .limit(limit)
-        )
-        
-        if low_stock_only:
-            query = query.where(Inventory.quantity <= Inventory.min_stock_level)
-        
-        result = await db.execute(query)
-        return result.scalars().all()
-    
+        """Get all inventory for a specific shop"""
+        try:
+            logger.info(f"Fetching inventory for shop ID: {shop_id}")
+            
+            result = await db.execute(
+                select(Inventory)
+                .options(selectinload(Inventory.product))
+                .where(Inventory.shop_id == shop_id)
+            )
+            inventory = result.scalars().all()
+            
+            logger.info(f"Retrieved {len(inventory)} inventory records for shop {shop_id}")
+            return inventory
+            
+        except Exception as e:
+            logger.error(f"Error fetching shop inventory for shop {shop_id}: {str(e)}")
+            raise
+
     @staticmethod
-    async def get_inventory_by_product(
+    async def get_product_inventory(
         db: AsyncSession,
         product_id: int
     ) -> List[Inventory]:
         """Get inventory across all shops for a product"""
-        result = await db.execute(
-            select(Inventory)
-            .options(selectinload(Inventory.shop))
-            .where(Inventory.product_id == product_id)
-        )
-        return result.scalars().all()
-    
+        try:
+            logger.info(f"Fetching inventory for product ID: {product_id}")
+            
+            result = await db.execute(
+                select(Inventory)
+                .options(selectinload(Inventory.shop))
+                .where(Inventory.product_id == product_id)
+            )
+            inventory = result.scalars().all()
+            
+            logger.info(f"Retrieved {len(inventory)} inventory records for product {product_id}")
+            return inventory
+            
+        except Exception as e:
+            logger.error(f"Error fetching product inventory for product {product_id}: {str(e)}")
+            raise
+
     @staticmethod
     async def update_inventory(
         db: AsyncSession,
@@ -129,45 +188,70 @@ class InventoryController:
         inventory_data: InventoryUpdate
     ) -> Inventory:
         """Update inventory details"""
-        inventory = await InventoryController.get_inventory(db, inventory_id)
-        
-        update_data = inventory_data.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(inventory, field, value)
-        
-        await db.commit()
-        await db.refresh(inventory)
-        
-        return inventory
-    
+        try:
+            logger.info(f"Updating inventory ID: {inventory_id}")
+            
+            inventory = await InventoryController.get_inventory(db, inventory_id)
+            update_data = inventory_data.model_dump(exclude_unset=True)
+            
+            for field, value in update_data.items():
+                setattr(inventory, field, value)
+                
+            await db.commit()
+            await db.refresh(inventory)
+            
+            logger.info(f"Successfully updated inventory ID: {inventory_id}")
+            return inventory
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating inventory ID {inventory_id}: {str(e)}")
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update inventory: {str(e)}"
+            )
+
     @staticmethod
     async def adjust_stock(
         db: AsyncSession,
         inventory_id: int,
-        adjustment_data: StockAdjustment
+        adjustment: StockAdjustment
     ) -> Inventory:
-        """Adjust inventory quantity (add or remove stock)"""
-        inventory = await InventoryController.get_inventory(db, inventory_id)
-        
-        new_quantity = inventory.quantity + adjustment_data.adjustment
-        
-        if new_quantity < 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Insufficient stock for this adjustment"
-            )
-        
-        inventory.quantity = new_quantity
-        
-        # Update last restocked date if adding stock
-        if adjustment_data.adjustment > 0:
+        """Adjust inventory stock quantity"""
+        try:
+            logger.info(f"Adjusting stock for inventory ID {inventory_id}: quantity={adjustment.quantity}, reason={adjustment.reason}")
+            
+            inventory = await InventoryController.get_inventory(db, inventory_id)
+            
+            new_quantity = inventory.quantity + adjustment.quantity
+            if new_quantity < 0:
+                logger.warning(f"Insufficient stock for inventory {inventory_id}: current={inventory.quantity}, adjustment={adjustment.quantity}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Insufficient stock for this adjustment"
+                )
+            
+            inventory.quantity = new_quantity
             inventory.last_restocked_at = datetime.now()
-        
-        await db.commit()
-        await db.refresh(inventory)
-        
-        return inventory
-    
+            
+            await db.commit()
+            await db.refresh(inventory)
+            
+            logger.info(f"Successfully adjusted stock for inventory {inventory_id}: new quantity={new_quantity}")
+            return inventory
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error adjusting stock for inventory {inventory_id}: {str(e)}")
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to adjust stock: {str(e)}"
+            )
+
     @staticmethod
     async def reserve_stock(
         db: AsyncSession,
@@ -175,21 +259,36 @@ class InventoryController:
         quantity: int
     ) -> Inventory:
         """Reserve stock for pending orders"""
-        inventory = await InventoryController.get_inventory(db, inventory_id)
-        
-        if inventory.available_quantity < quantity:
+        try:
+            logger.info(f"Reserving {quantity} units for inventory ID {inventory_id}")
+            
+            inventory = await InventoryController.get_inventory(db, inventory_id)
+            
+            available = inventory.quantity - inventory.reserved_quantity
+            if available < quantity:
+                logger.warning(f"Insufficient available stock for inventory {inventory_id}: available={available}, requested={quantity}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Insufficient available stock. Available: {available}"
+                )
+            
+            inventory.reserved_quantity += quantity
+            await db.commit()
+            await db.refresh(inventory)
+            
+            logger.info(f"Successfully reserved {quantity} units for inventory {inventory_id}")
+            return inventory
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error reserving stock for inventory {inventory_id}: {str(e)}")
+            await db.rollback()
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient available stock. Available: {inventory.available_quantity}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to reserve stock: {str(e)}"
             )
-        
-        inventory.reserved_quantity += quantity
-        
-        await db.commit()
-        await db.refresh(inventory)
-        
-        return inventory
-    
+
     @staticmethod
     async def release_stock(
         db: AsyncSession,
@@ -197,40 +296,57 @@ class InventoryController:
         quantity: int
     ) -> Inventory:
         """Release reserved stock"""
-        inventory = await InventoryController.get_inventory(db, inventory_id)
-        
-        if inventory.reserved_quantity < quantity:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot release more than reserved quantity"
-            )
-        
-        inventory.reserved_quantity -= quantity
-        
-        await db.commit()
-        await db.refresh(inventory)
-        
-        return inventory
-    
-    @staticmethod
-    async def check_stock_availability(
-        db: AsyncSession,
-        product_id: int,
-        shop_id: int,
-        required_quantity: int
-    ) -> bool:
-        """Check if sufficient stock is available"""
-        result = await db.execute(
-            select(Inventory).where(
-                and_(
-                    Inventory.product_id == product_id,
-                    Inventory.shop_id == shop_id
+        try:
+            logger.info(f"Releasing {quantity} reserved units for inventory ID {inventory_id}")
+            
+            inventory = await InventoryController.get_inventory(db, inventory_id)
+            
+            if inventory.reserved_quantity < quantity:
+                logger.warning(f"Cannot release more than reserved for inventory {inventory_id}: reserved={inventory.reserved_quantity}, release={quantity}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot release more than reserved. Reserved: {inventory.reserved_quantity}"
                 )
+            
+            inventory.reserved_quantity -= quantity
+            await db.commit()
+            await db.refresh(inventory)
+            
+            logger.info(f"Successfully released {quantity} units for inventory {inventory_id}")
+            return inventory
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error releasing stock for inventory {inventory_id}: {str(e)}")
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to release stock: {str(e)}"
             )
-        )
-        inventory = result.scalar_one_or_none()
-        
-        if not inventory:
-            return False
-        
-        return inventory.available_quantity >= required_quantity
+
+    @staticmethod
+    async def get_low_stock_items(
+        db: AsyncSession,
+        threshold: int = 5
+    ) -> List[Inventory]:
+        """Get inventory items with low stock"""
+        try:
+            logger.info(f"Fetching low stock items (threshold={threshold})")
+            
+            result = await db.execute(
+                select(Inventory)
+                .options(
+                    selectinload(Inventory.product),
+                    selectinload(Inventory.shop)
+                )
+                .where(Inventory.quantity <= threshold)
+            )
+            inventory = result.scalars().all()
+            
+            logger.info(f"Found {len(inventory)} low stock items")
+            return inventory
+            
+        except Exception as e:
+            logger.error(f"Error fetching low stock items: {str(e)}")
+            raise
