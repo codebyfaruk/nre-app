@@ -138,22 +138,27 @@ class InventoryController:
     @staticmethod
     async def get_shop_inventory(
         db: AsyncSession,
-        shop_id: int
+        shop_id: int,
+        skip: int = 0,
+        limit: int = 50,
+        sort_by: str = "updated_at"
     ) -> List[Inventory]:
         """Get all inventory for a specific shop"""
         try:
-            logger.info(f"Fetching inventory for shop ID: {shop_id}")
+            query = select(Inventory).where(Inventory.shop_id == shop_id)
             
-            result = await db.execute(
-                select(Inventory)
-                .options(selectinload(Inventory.product))
-                .where(Inventory.shop_id == shop_id)
-            )
-            inventory = result.scalars().all()
+            if sort_by == "quantity":
+                query = query.order_by(Inventory.quantity.asc())
+            elif sort_by == "product_id":
+                query = query.order_by(Inventory.product_id.asc())
+            else:
+                query = query.order_by(Inventory.updated_at.desc())
             
-            logger.info(f"Retrieved {len(inventory)} inventory records for shop {shop_id}")
-            return inventory
+            query = query.offset(skip).limit(limit)
             
+            result = await db.execute(query)
+            return result.scalars().all()
+        
         except Exception as e:
             logger.error(f"Error fetching shop inventory for shop {shop_id}: {str(e)}")
             raise
@@ -161,25 +166,26 @@ class InventoryController:
     @staticmethod
     async def get_product_inventory(
         db: AsyncSession,
-        product_id: int
+        product_id: int,
+        skip: int = 0,
+        limit: int = 50
     ) -> List[Inventory]:
         """Get inventory across all shops for a product"""
         try:
-            logger.info(f"Fetching inventory for product ID: {product_id}")
-            
-            result = await db.execute(
+            query = (
                 select(Inventory)
-                .options(selectinload(Inventory.shop))
                 .where(Inventory.product_id == product_id)
+                .order_by(Inventory.quantity.desc())
+                .offset(skip)
+                .limit(limit)
             )
-            inventory = result.scalars().all()
-            
-            logger.info(f"Retrieved {len(inventory)} inventory records for product {product_id}")
-            return inventory
+            result = await db.execute(query)
+            return result.scalars().all()
             
         except Exception as e:
             logger.error(f"Error fetching product inventory for product {product_id}: {str(e)}")
             raise
+
 
     @staticmethod
     async def update_inventory(
@@ -328,23 +334,20 @@ class InventoryController:
     @staticmethod
     async def get_low_stock_items(
         db: AsyncSession,
-        threshold: int = 5
+        threshold: int = 5,
+        skip: int = 0,
+        limit: int = 50
     ) -> List[Inventory]:
         """Get inventory items with low stock"""
         try:
-            logger.info(f"Fetching low stock items (threshold={threshold})")
-            
             result = await db.execute(
                 select(Inventory)
-                .options(
-                    selectinload(Inventory.product),
-                    selectinload(Inventory.shop)
-                )
                 .where(Inventory.quantity <= threshold)
+                .order_by(Inventory.quantity.asc())
+                .offset(skip)
+                .limit(limit)
             )
             inventory = result.scalars().all()
-            
-            logger.info(f"Found {len(inventory)} low stock items")
             return inventory
             
         except Exception as e:

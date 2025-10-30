@@ -23,6 +23,8 @@ router = APIRouter()
 @router.get("/low-stock", response_model=List[InventoryResponse])
 async def get_low_stock_items(
     threshold: int = Query(5, description="Stock level threshold", ge=0),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -30,25 +32,30 @@ async def get_low_stock_items(
     
     - **threshold**: Minimum stock level (default: 5)
     """
-    return await InventoryController.get_low_stock_items(db=db, threshold=threshold)
+    return await InventoryController.get_low_stock_items(db=db, threshold=threshold, skip=skip, limit=limit)
 
 
 @router.get("/shop/{shop_id}", response_model=List[InventoryResponse])
 async def get_shop_inventory(
     shop_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    sort_by: str = Query("updated_at", description="Sort by: updated_at, quantity, or product_id"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get all inventory for a specific shop"""
-    return await InventoryController.get_shop_inventory(db, shop_id)
+    return await InventoryController.get_shop_inventory(db, shop_id, skip=skip, limit=limit, sort_by=sort_by)
 
 
 @router.get("/product/{product_id}", response_model=List[InventoryResponse])
 async def get_product_inventory(
     product_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db)
 ):
     """Get inventory across all shops for a specific product"""
-    return await InventoryController.get_product_inventory(db, product_id)
+    return await InventoryController.get_product_inventory(db=db, skip=skip, limit=limit, product_id=product_id)
 
 
 # ============================================

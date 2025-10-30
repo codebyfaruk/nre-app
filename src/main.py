@@ -28,12 +28,21 @@ app.add_middleware(
 
 include_routers(app)
 
-# Create media directory if it doesn't exist
-os.makedirs("/app/media", exist_ok=True)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
 
-# Mount static files
-app.mount("/media", StaticFiles(directory="/app/media"), name="media")
+if os.path.exists("/.dockerenv"):
+    # Inside Docker container
+    BASE_DIR = "/app"
+else:
+    # Local environment → use parent of current file
+    BASE_DIR = PARENT_DIR
 
+MEDIA_DIR = os.path.join(BASE_DIR, "media")
+
+os.makedirs(MEDIA_DIR, exist_ok=True)
+
+app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 @app.get("/")
 async def root():
