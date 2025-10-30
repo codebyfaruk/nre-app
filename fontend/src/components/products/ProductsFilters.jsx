@@ -1,4 +1,4 @@
-// src/components/products/ProductsFilters.jsx - COMPLETE
+// src/components/products/ProductsFilters.jsx - FIXED
 
 export const ProductsFilters = ({
   searchTerm,
@@ -6,42 +6,51 @@ export const ProductsFilters = ({
   selectedCategory,
   onCategoryChange,
   categories,
+  onAddClick,
 }) => {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="p-6 bg-white rounded-2xl shadow-sm mb-6">
+      <div className="flex flex-col md:flex-row gap-4 items-end">
         {/* Search */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Search Products
+        <div className="flex-1">
+          <label className="block text-sm font-bold text-slate-700 mb-2">
+            Search
           </label>
           <input
             type="text"
+            placeholder="Search by name or SKU..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search by name, SKU..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 outline-none"
           />
         </div>
 
         {/* Category Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="flex-1">
+          <label className="block text-sm font-bold text-slate-700 mb-2">
             Category
           </label>
           <select
             value={selectedCategory}
             onChange={(e) => onCategoryChange(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 outline-none"
           >
             <option value="">All Categories</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
               </option>
             ))}
           </select>
         </div>
+
+        {/* Add Product Button */}
+        <button
+          onClick={onAddClick}
+          className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition whitespace-nowrap"
+        >
+          ➕ Add Product
+        </button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-// src/pages/Inventory.jsx - COMPLETE WITH AUTOCOMPLETE
+// src/pages/Inventory.jsx - SIMPLIFIED & FIXED
 
 import { useState, useEffect } from "react";
 import { Layout } from "../components/layout/Layout";
@@ -12,7 +12,8 @@ import { apiService } from "../services/api.service";
 import { showSuccess, showError } from "../utils/toast";
 
 export const Inventory = () => {
-  const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
+  const [displayProducts, setDisplayProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,9 +22,31 @@ export const Inventory = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
+  // ✅ Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   useEffect(() => {
     loadData();
   }, []);
+
+  // ✅ Filter and paginate
+  useEffect(() => {
+    const filtered = allProducts.filter((p) => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesCategory = selectedCategory
+        ? p.category_id === parseInt(selectedCategory)
+        : true;
+
+      return matchesSearch && matchesCategory;
+    });
+
+    const start = (currentPage - 1) * itemsPerPage;
+    setDisplayProducts(filtered.slice(start, start + itemsPerPage));
+  }, [allProducts, searchTerm, selectedCategory, currentPage]);
 
   const loadData = async () => {
     setLoading(true);
@@ -34,202 +57,132 @@ export const Inventory = () => {
         apiService.getShops(),
       ]);
 
-      setProducts(productsRes.data);
-      setCategories(categoriesRes.data);
-      setShops(shopsRes.data);
+      setAllProducts(productsRes.data || []);
+      setCategories(categoriesRes.data || []);
+      setShops(shopsRes.data || []);
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.error("Error loading:", error);
       showError("Failed to load data");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddProduct = () => {
-    setEditingProduct(null);
-    setShowModal(true);
-  };
+  const filteredCount = allProducts.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchTerm.toLowerCase());
 
-  const handleEditProduct = (product) => {
+    const matchesCategory = selectedCategory
+      ? p.category_id === parseInt(selectedCategory)
+      : true;
+
+    return matchesSearch && matchesCategory;
+  }).length;
+
+  const totalPages = Math.ceil(filteredCount / itemsPerPage) || 1;
+
+  const handleOpenModal = (product = null) => {
     setEditingProduct(product);
     setShowModal(true);
   };
 
-  // ✅ Switch from add to edit mode when product is selected from autocomplete
-  const handleSwitchToEdit = (selectedProduct) => {
-    setEditingProduct(selectedProduct);
-  };
-
-  const handleDeleteProduct = async (productId) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) {
-      return;
-    }
+  const handleDeleteProduct = async (id) => {
+    if (!window.confirm("Delete this product?")) return;
 
     try {
-      await apiService.deleteProduct(productId);
-      showSuccess("Product deleted successfully!");
+      await apiService.deleteProduct(id);
+      showSuccess("✅ Product deleted!");
+      setCurrentPage(1);
       loadData();
     } catch (error) {
-      console.error("Error deleting product:", error);
-      showError("Failed to delete product");
+      console.error("Error:", error);
+      showError("Failed to delete");
     }
   };
 
-  const handleSaveProduct = async (productData) => {
+  const handleSaveProduct = async (data) => {
     try {
-      const generateSlug = (name) => {
-        return name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "");
-      };
-
-      const apiData = {
-        name: productData.name,
-        sku: productData.sku,
-        slug: generateSlug(productData.name),
-        description: productData.description || null,
-        category_id: parseInt(productData.categoryId),
-        brand: productData.brand,
-        model: productData.model || null,
-        price: parseFloat(productData.price),
-        discount_price: productData.discountPrice
-          ? parseFloat(productData.discountPrice)
+      const payload = {
+        name: data.name,
+        sku: data.sku,
+        slug: data.name.toLowerCase().replace(/\s+/g, "-"),
+        category_id: parseInt(data.categoryId),
+        brand: data.brand,
+        model: data.model || null,
+        price: parseFloat(data.price),
+        discount_price: data.discountPrice
+          ? parseFloat(data.discountPrice)
           : null,
-        cost_price: parseFloat(productData.costPrice),
-        specifications: productData.specifications || null,
-        warranty_months: parseInt(productData.warrantyMonths) || 12,
-        image_url: productData.imageUrl || null,
-        is_active: productData.isActive,
+        cost_price: parseFloat(data.costPrice),
+        description: data.description || null,
+        image_url: data.imageUrl || null,
+        is_active: data.isActive,
       };
 
-      if (productData.existingProductId) {
-        // ✅ UPDATE PRODUCT
-        await apiService.updateProduct(productData.existingProductId, apiData);
-
-        // ✅ UPDATE INVENTORY FOR EACH SHOP
-        if (productData.shopInventory) {
-          const inventoryUpdates = Object.entries(
-            productData.shopInventory
-          ).map(async ([shopId, invData]) => {
-            if (invData.inventoryId) {
-              // Update existing inventory
-              return apiService.updateInventory(invData.inventoryId, {
-                quantity: invData.quantity,
-              });
-            } else if (invData.quantity > 0) {
-              // Create new inventory for this shop
-              return apiService.createInventory({
-                product_id: productData.existingProductId,
-                shop_id: parseInt(shopId),
-                quantity: invData.quantity,
-                min_stock_level: 10,
-                max_stock_level: 1000,
-              });
-            }
-          });
-          await Promise.all(inventoryUpdates.filter(Boolean));
-        }
-
-        showSuccess("Product and inventory updated successfully!");
+      if (data.existingProductId) {
+        await apiService.updateProduct(data.existingProductId, payload);
+        showSuccess("✅ Updated!");
       } else {
-        // ✅ CREATE NEW PRODUCT
-        const response = await apiService.createProduct(apiData);
-
-        // ✅ CREATE INVENTORY FOR ALL SHOPS WITH QUANTITY > 0
-        if (productData.shopInventory) {
-          const inventoryCreates = Object.entries(productData.shopInventory)
-            .filter(([_, invData]) => invData.quantity > 0)
-            .map(([shopId, invData]) =>
-              apiService.createInventory({
-                product_id: response.data.id,
-                shop_id: parseInt(shopId),
-                quantity: invData.quantity,
-                min_stock_level: 10,
-                max_stock_level: 1000,
-              })
-            );
-
-          if (inventoryCreates.length > 0) {
-            await Promise.all(inventoryCreates);
-            const totalQty = Object.values(productData.shopInventory).reduce(
-              (sum, inv) => sum + inv.quantity,
-              0
-            );
-            showSuccess(
-              `Product added with ${totalQty} units across ${inventoryCreates.length} shops!`
-            );
-          } else {
-            showSuccess("Product added successfully!");
-          }
-        } else {
-          showSuccess("Product added successfully!");
-        }
+        await apiService.createProduct(payload);
+        showSuccess("✅ Created!");
       }
 
       setShowModal(false);
       setEditingProduct(null);
+      setCurrentPage(1);
       loadData();
     } catch (error) {
-      console.error("Error saving product:", error);
-
-      const errorMessage = error.response?.data?.detail
-        ? Array.isArray(error.response.data.detail)
-          ? error.response.data.detail[0].msg
-          : error.response.data.detail
-        : "Failed to save product";
-
-      showError(errorMessage);
+      console.error("Error:", error);
+      showError("Failed to save product");
     }
   };
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory
-      ? product.category_id === parseInt(selectedCategory)
-      : true;
-    return matchesSearch && matchesCategory;
-  });
-
   return (
     <Layout>
-      <div className="p-6">
-        <ProductsHeader onAddProduct={handleAddProduct} />
+      <ProductsHeader />
 
-        <ProductsFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-          categories={categories}
-        />
+      <ProductsFilters
+        searchTerm={searchTerm}
+        onSearchChange={(v) => {
+          setSearchTerm(v);
+          setCurrentPage(1);
+        }}
+        selectedCategory={selectedCategory}
+        onCategoryChange={(v) => {
+          setSelectedCategory(v);
+          setCurrentPage(1);
+        }}
+        categories={categories}
+        onAddClick={() => handleOpenModal()}
+      />
 
-        <ProductsTable
-          products={filteredProducts}
+      <ProductsTable
+        products={displayProducts}
+        categories={categories}
+        shops={shops}
+        loading={loading}
+        onEdit={handleOpenModal}
+        onDelete={handleDeleteProduct}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        totalResults={filteredCount}
+        itemsPerPage={itemsPerPage}
+      />
+
+      {showModal && (
+        <ProductModal
+          product={editingProduct}
           categories={categories}
           shops={shops}
-          loading={loading}
-          onEdit={handleEditProduct}
-          onDelete={handleDeleteProduct}
+          onClose={() => {
+            setShowModal(false);
+            setEditingProduct(null);
+          }}
+          onSave={handleSaveProduct}
         />
-
-        {showModal && (
-          <ProductModal
-            product={editingProduct}
-            categories={categories}
-            shops={shops}
-            allProducts={products}
-            onClose={() => {
-              setShowModal(false);
-              setEditingProduct(null);
-            }}
-            onSave={handleSaveProduct}
-            onSwitchToEdit={handleSwitchToEdit}
-          />
-        )}
-      </div>
+      )}
     </Layout>
   );
 };

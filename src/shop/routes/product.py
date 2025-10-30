@@ -91,8 +91,8 @@ async def create_product(
 
 @router.get("/", response_model=List[ProductResponse])
 async def get_products(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
     category_id: Optional[int] = Query(None, description="Filter by category"),
     search: Optional[str] = Query(None, description="Search by name, SKU, or brand"),
     is_active: Optional[bool] = None,
